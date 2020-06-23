@@ -1,0 +1,16 @@
+# folders not to include on GitLab repository
+
+/figs_manuscript_Misha_Behrouz
+/data_experiment
+/data_model/movies
+/Ipython_notebooks
+/CFD_Scoring
+
+# not important files:
+*.DS_Store
+
+#Ipython checkpoints:
+.ipynb_checkpoints/
+
+# loaded Python modules:
+*.pyc
