@@ -1,11 +1,12 @@
 # folders not to include on GitLab repository
 
 /figs_manuscript_Misha_Behrouz
+/notebooks
 /data_experiment
 /data_model/movies
 /Ipython_notebooks
 /CFD_Scoring
-
+/.idea
 # not important files:
 *.DS_Store
 
