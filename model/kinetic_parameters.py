@@ -35,7 +35,7 @@ def kinetic_parameters(filename, ID_Cas="Clv_Saturated_general_energies_v2",
 
     # ---- this "IF" construction should make it possible to also be used during SA,
     # then you do not have a file, but the parameter vector -------
-    elif parameter_vector_SA.any():
+    elif np.array(parameter_vector_SA).any():
         parameters = parameter_vector_SA
 
     # --- split into parameters fitted using dCas9 and Cas9 (Nucleaseq is done under saturating conditions) ---
