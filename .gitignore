@@ -6,10 +6,10 @@
 /Ipython_notebooks
 /CFD_Scoring
 /.idea
-**/monitor*.txt
-**/init_model*.txt
-**/error*.txt
-**/print*.txt
+/data_model/**/monitor*.txt
+/data_model/**/init_model*.txt
+/data_model/error*.txt
+/data_model/print*.txt
 # not important files:
 *.DS_Store
 
