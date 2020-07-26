@@ -8,10 +8,11 @@
 /.idea
 /data_model/**/monitor*.txt
 /data_model/**/init_model*.txt
+/**/error*.txt
+/**/print*.txt
 # not important files:
 *.DS_Store
-*/monitor*.txt
-*/init_monitor*.txt
+
 
 #Ipython checkpoints:
 .ipynb_checkpoints/
