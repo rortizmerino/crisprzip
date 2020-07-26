@@ -8,6 +8,8 @@
 /.idea
 # not important files:
 *.DS_Store
+*/monitor*.txt
+*/init_monitor*.txt
 
 #Ipython checkpoints:
 .ipynb_checkpoints/
