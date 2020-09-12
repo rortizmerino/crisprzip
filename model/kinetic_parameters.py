@@ -26,10 +26,10 @@ def kinetic_parameters(filename, ID_Cas="Clv_Saturated_general_energies_v2",
         # -- extract from output file SA fit  (use not the final solution perse, but whatever gave lowest chi2) ------
         SAfit = pd.read_csv(filename, delimiter='\t', index_col=False)  # might need to adjust "index_col=39" to make more general?
         SAfit.reset_index(inplace=True)
-        best_solution = np.argmin(SAfit.Potential)
         if fatch_solution == "best_solution":
+            best_solution = np.argmin(SAfit.Potential)
             parameters = load_simm_anneal(filename, nmbr_fit_params, fatch_solution=best_solution)
-        else:
+        else:            
             parameters = load_simm_anneal(filename, nmbr_fit_params, fatch_solution=fatch_solution)
 
 
