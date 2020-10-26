@@ -73,7 +73,7 @@ def calc_dissociation_rate(guide, target, epsilon, forward_rates,Cas,
     # --- Renormalize remainder ---
     after_12hrs = after_12hrs / np.sum(after_12hrs)
 
-    # --- Flush out all freely floating dCas9 --> Set on-rate to zero and rebuild matrix ---
+    # --- Competitor on-targets DNA catch all unbound dCas9 'immediately' --> Set on-rate to zero and rebuild matrix ---
     new_rate_matrix = rate_matrix.copy()
     new_rate_matrix[0][0] = 0.0
     new_rate_matrix[1][0] = 0.0
