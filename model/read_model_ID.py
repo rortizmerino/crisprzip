@@ -9,15 +9,15 @@ import numpy as np
 
 
 def unpack_parameters(parameters, model_id, guide_length=20):
-    '''
+    """
     Use model ID to construct vector of epsilon values and forward rates.
 
-    For every paramaterisation add a new case/ model_id
+    For every parametrization add a new case/ model_id
     :param parameters:
     :param model_id:
     :param guide_length:
     :return:
-    '''
+    """
 
     epsilon = np.zeros(2 * guide_length + 1)
     forward_rates = np.ones(guide_length + 2)

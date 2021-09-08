@@ -6,11 +6,14 @@ import pandas as pd
 import read_model_ID
 
 
-def kinetic_parameters(filename, ID_Cas="Clv_Saturated_general_energies_v2",
-                       ID_dCas="general_energies_no_kPR",
-                       concentration_nM=10.,
-                       nmbr_fit_params=44, fatch_solution="best_solution", parameter_vector_SA=None):
-    '''
+def kinetic_parameters(filename,
+                       ID_Cas = 'Clv_Saturated_general_energies_v2',
+                       ID_dCas ='general_energies_no_kPR',
+                       concentration_nM = 10.,
+                       nmbr_fit_params = 44,
+                       fatch_solution = "best_solution",
+                       parameter_vector_SA = None):
+    """
     This is made based on the sequence averaged model.
     From the SA fit, we get the parameters, at the specified concentration
 
@@ -20,7 +23,7 @@ def kinetic_parameters(filename, ID_Cas="Clv_Saturated_general_energies_v2",
     :param concentration_nM: concentration in nM of originally stored parameters
     :param nmbr_fit_params: number of free-parameters in SAfit
     :return:
-    '''
+    """
 
     if filename:
         # -- extract from output file SA fit  (use not the final solution perse, but whatever gave lowest chi2) ------
@@ -42,7 +45,6 @@ def kinetic_parameters(filename, ID_Cas="Clv_Saturated_general_energies_v2",
     # ---- might need to adjust this part to make more general ? ----
     Cas_params = get_fit_parameters(ID_Cas, parameters)
     dCas_params= get_fit_parameters(ID_dCas, parameters)
-
 
     # --- get epsilon and forward rates ----
     epsilon, forward_rates = read_model_ID.unpack_parameters(dCas_params, model_id=ID_dCas)
