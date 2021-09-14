@@ -314,14 +314,11 @@ class Duplex:
         if strand1.length != strand2.length:
             raise ValueError('Both strands must be equally long')
 
-        # Aligning the two strands
+        # Both strands should have specified directionality
         d1 = strand1.direction
         d2 = strand2.direction
-
-        # Raises error if one strand has direction and the other hasn't
-        if d1 * d2 == 0 and d1 + d2 > 0:
-            raise ValueError('One strand has specified directionality and the '
-                             'other has not.')
+        if d1 * d2 == 0:
+            raise ValueError('Both strands require a specified directionality')
 
         # enforcing opposite directionality for strands
         new_d2 = (3 - d1) % 3
