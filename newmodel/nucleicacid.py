@@ -4,9 +4,13 @@ This module defines objects that represent basic genetic units.
 - class Base
     - subclass DnaBase
     - subclass RnaBase
+
 - class NucleicAcid
     - subclass DnaCode
     - subclass RnaCode
+
+- class Duplex
+
 """
 
 
@@ -140,7 +144,7 @@ class NucleicAcid:
 
     Attributes
     ----------
-    content : list[Base]
+    content : list of Base
         Nucleobase content of sequence
     length : int
         Length of sequence
@@ -157,11 +161,16 @@ class NucleicAcid:
     complement_rna()
         Returns the complementing RNA code as a RnaCode object
         (inverts directionality)
+    make_double_strand()
+        Returns a Duplex of strand and its complement of the same type
     """
+
+    nucleic_acid_type = None
 
     def __init__(self, genetic_code, direction=0):
         base_name_list = list(genetic_code)
         self.content = [Base(x) for x in base_name_list]
+        self.ids = [x.id for x in self.content]
         self.length = len(self.content)
         if direction in [0, 1, 2]:
             self.direction = direction
@@ -181,25 +190,39 @@ class NucleicAcid:
     def __repr__(self):
         return str(self)
 
+    def __getitem__(self, item):
+        return self.content[item]
+
     def __inv_direction(self):
         return (3 - self.direction) % 3
 
-    def __complement_ids(self):
-        return [x.complement_id() for x in self.content]
-        # perhaps this can be sped up by performing a list operation
-
     def invert(self):
-        """Returns the inverse sequence, with switched directionality"""
+        """Returns the inverse sequence, with switched
+        directionality."""
         inv_type = type(self)
         content_string = str(self).strip("35'-")
         inv_content = content_string[::-1]
         inv_direction = self.__inv_direction()
         return inv_type(inv_content, inv_direction)
 
+    def enforce_direction(self, new_direction):
+        """Returns sequence with enforced directionality"""
+        if new_direction in [1, 2]:
+            if new_direction + self.direction == 3:
+                return self.invert()
+            else:
+                return self
+        else:
+            raise ValueError(f"{new_direction} is an invalid direction. " +
+                             f"Choose 1 (5'-to-3') or 2 (3'-to-5')")
+
+    def complement_ids(self):
+        return [3 - base_id for base_id in self.ids]
+
     def complement_dna(self):
         """Returns the complementing DNA code as a DnaCode object
         (inverts directionality)"""
-        c_ids = self.__complement_ids()
+        c_ids = self.complement_ids()
         c_base_list = [DnaBase(base_id=base_id).name for base_id in c_ids]
         c_base_str = ''.join(c_base_list)
         c_direction = self.__inv_direction()
@@ -208,17 +231,27 @@ class NucleicAcid:
     def complement_rna(self):
         """Returns the complementing RNA code as a RnaCode object
         (inverts directionality)"""
-        c_ids = self.__complement_ids()
+        c_ids = self.complement_ids()
         c_base_list = [RnaBase(base_id=base_id).name for base_id in c_ids]
         c_base_str = ''.join(c_base_list)
         c_direction = self.__inv_direction()
         return RnaCode(c_base_str, c_direction)
+
+    def make_double_strand(self):
+        if self.nucleic_acid_type == 'DNA':
+            return Duplex(self, self.complement_dna())
+        elif self.nucleic_acid_type == 'RNA':
+            return Duplex(self, self.complement_rna())
+        else:
+            raise ValueError('Nucleic acid type must be specified')
 
 
 class DnaCode(NucleicAcid):
     """
     Represents a DNA sequence.
     """
+
+    nucleic_acid_type = 'DNA'
 
     def __init__(self, genetic_code, direction=0):
         NucleicAcid.__init__(self, genetic_code, direction)
@@ -228,10 +261,95 @@ class DnaCode(NucleicAcid):
 
 class RnaCode(NucleicAcid):
     """
-    Represents a RNA sequence.
+    Represents an RNA sequence.
     """
+
+    nucleic_acid_type = 'RNA'
 
     def __init__(self, genetic_code, direction=0):
         NucleicAcid.__init__(self, genetic_code, direction)
         # Overwrite content to contain RnaBase
         self.content = [RnaBase(x.name) for x in self.content]
+
+
+class Duplex:
+    """
+    Represents a nucleic acid duplex: dsDNA, dsRNA or DNA:RNA-duplex
+
+    Attributes
+    ----------
+    strand1 : DnaCode or RnaCode
+        First strand of duplex (DNA/RNA)
+    strand2 : DnaCode or RnaCode
+        Second strand of duplex (DNA/RNA)
+    content : list of tuple of Base
+        Base pair content of sequence: (base 1, base 2)
+    length : int
+        Length of sequence
+    complementary : bool
+        Indicates whether the duplex is fully matched
+
+    Methods
+    -------
+    invert()
+        Returns the inverse duplex, with switched directionality
+    switch()
+        Returns duplex with strand1 and strand2 interchanged
+    mismatch_positions()
+        Returns a list of bool indicating whether each base pair
+         in the duplex is mismatched
+    mismatch_number()
+        Returns the number of mismatching base pairs
+    """
+
+    def __init__(self, strand1: NucleicAcid, strand2: NucleicAcid):
+
+        # Check nucleic acid types
+        if not (isinstance(strand1, (DnaCode, RnaCode)) and
+                isinstance(strand2, (DnaCode, RnaCode)) ):
+            raise ValueError('Both strands must have specified nucleic acid'
+                             'types (DNA or RNA)')
+
+        # Check strand lengths
+        if strand1.length != strand2.length:
+            raise ValueError('Both strands must be equally long')
+
+        # Aligning the two strands
+        d1 = strand1.direction
+        d2 = strand2.direction
+
+        # Raises error if one strand has direction and the other hasn't
+        if d1 * d2 == 0 and d1 + d2 > 0:
+            raise ValueError('One strand has specified directionality and the '
+                             'other has not.')
+
+        # enforcing opposite directionality for strands
+        new_d2 = (3 - d1) % 3
+        strand2 = strand2.enforce_direction(new_d2)
+        self.strand1 = strand1
+        self.strand2 = strand2
+
+        self.length = strand1.length
+        self.content = [(strand1[bp], strand2[bp]) for bp in range(self.length)]
+        self.complementary = (self.mismatch_number() == 0)
+
+    def __repr__(self):
+        return f"{str(self.strand1)} ({self.strand1.nucleic_acid_type})\n" +\
+               f"{str(self.strand2)} ({self.strand2.nucleic_acid_type})\n"
+
+    def invert(self):
+        """Returns the inverse duplex, with switched directionality"""
+        return Duplex(self.strand1.invert(), self.strand2.invert())
+
+    def switch(self):
+        """Returns duplex with strand1 and strand2 interchanged"""
+        return Duplex(self.strand2, self.strand1)
+
+    def mismatch_positions(self):
+        """Returns a list of bool indicating whether each base pair
+        in the duplex is mismatched"""
+        return [b1.complement_id() != b2.id for (b1, b2) in self.content]
+
+    def mismatch_number(self):
+        """Returns the number of mismatching base pairs"""
+        return sum(self.mismatch_positions())
