@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.typing as npt
 from scipy import linalg
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -90,7 +91,7 @@ class Searcher:
                                      self.forward_rate_dict,
                                      target_mismatches)
 
-    def plot_landscape(self, axes=None):
+    def plot_on_target_landscape(self, axes=None):
         """
         Creates a line plot of the on- or off-target landscape. If
         target_mismatches is provided, plots both the on- and
@@ -232,13 +233,13 @@ class SearcherTargetComplex(Searcher):
         Returns the probability that a searcher in the PAM state (if
         present, otherwise b=1) cleaves a target before having left it
         (for active searchers)
-    solve_master_equation(time, searcher_concentration)
+    solve_master_equation()
         Solves Master equation, giving time evolution of the landscape
         occupancy
-    get_cleaved_fraction(time, searcher_concentration)
+    get_cleaved_fraction()
         Returns the fraction of cleaved targets after a specified time
         (for active searchers)
-    get_bound_fraction(time_searcher_concentration)
+    get_bound_fraction()
         Returns the fraction of bound targets after a specified time
         (for dead searchers)
     plot_landscape()
@@ -308,7 +309,8 @@ class SearcherTargetComplex(Searcher):
         return rate_matrix
 
     def solve_master_equation(self, initial_condition: np.ndarray,
-                              time: float, searcher_concentration: float = 1.0,
+                              time: npt.ArrayLike,
+                              searcher_concentration: float = 1.0,
                               rebinding=True) -> np.ndarray:
         """
         Calculates how the occupancy of the landscape states evolves by
@@ -321,8 +323,8 @@ class SearcherTargetComplex(Searcher):
             Vector showing the initial occupancy on the hybridization
             landscape. Has length guide_length+3 (if PAM_detection is
             true), and should sum to 1.
-        time: float
-            Time at which the master equation is evaluated.
+        time: array_like
+            Times at which the master equation is evaluated.
         searcher_concentration: float
             Searcher concentration in solution (units nM). Takes the
             reference value of 1 nM by default.
@@ -349,9 +351,20 @@ class SearcherTargetComplex(Searcher):
         if not rebinding:
             rate_matrix[:, 0] = 0
 
-        # where the magic happens; evaluating the master equation
-        matrix_exponent = linalg.expm(rate_matrix * time)
-        landscape_occupancy = matrix_exponent.dot(initial_condition)
+        # set up for-loop over time iterable
+        if type(time) == int:
+            time = [time]  # Quick fix for int iteration issue
+        time_array = np.asarray(time)
+        landscape_occupancy = np.zeros((time_array.size,
+                                        initial_condition.size))
+        for i in range(time_array.size):
+            # where the magic happens; evaluating the master equation
+            matrix_exponent = linalg.expm(rate_matrix * time_array[i])
+            landscape_occupancy[i, :] = matrix_exponent.dot(initial_condition)
+
+        # remove redundant dimensions
+        landscape_occupancy = np.squeeze(landscape_occupancy)
+
         return landscape_occupancy
 
     def get_cleavage_probability(self) -> float:
@@ -365,22 +378,23 @@ class SearcherTargetComplex(Searcher):
         cleavage_probability = 1 / (1 + gamma.cumprod().sum())
         return cleavage_probability
 
-    def get_cleaved_fraction(self, time: float,
-                             searcher_concentration: float = 1.0) -> float:
+    def get_cleaved_fraction(self, time: npt.ArrayLike,
+                             searcher_concentration: float = 1.0)\
+            -> npt.ArrayLike:
         """
         Returns the fraction of cleaved targets after a specified time
 
         Parameters
         ----------
-        time: float
-            Time at which the cleaved fraction is calculated
+        time: array_like
+            Times at which the cleaved fraction is calculated
         searcher_concentration: float
             Searcher concentration in solution (units nM). Takes the
             reference value of 1 nM by default.
 
         Returns
         -------
-        cleaved_fraction: float
+        cleaved_fraction: array_like
             Fraction of targets that is expected to be cleaved by time
             t.
         """
@@ -390,27 +404,27 @@ class SearcherTargetComplex(Searcher):
         )
         prob_distr = self.solve_master_equation(unbound_state, time,
                                                 searcher_concentration)
-        cleaved_fraction = prob_distr[-1]
+        cleaved_fraction = prob_distr.T[-1]
         return cleaved_fraction
 
-    def get_prob_bound(self, time: float, searcher_concentration: float = 1.0)\
-            -> float:
+    def get_bound_fraction(self, time: npt.ArrayLike,
+                           searcher_concentration: float = 1.0)\
+            -> npt.ArrayLike:
         """
         Returns the fraction of bound targets after a specified time,
         assuming that searcher is catalytically dead/inactive.
 
-
         Parameters
         ----------
-        time: float
-            Time at which the cleaved fraction is calculated
+        time: array_like
+            Times at which the cleaved fraction is calculated
         searcher_concentration: float
             Searcher concentration in solution (units nM). Takes the
             reference value of 1 nM by default.
 
         Returns
         -------
-        cleaved_fraction: float
+        cleaved_fraction: array_like
             Fraction of targets that is expected to be bound by time
             t.
         """
@@ -432,10 +446,10 @@ class SearcherTargetComplex(Searcher):
         prob_distr =\
             dead_searcher.solve_master_equation(unbound_state, time,
                                                 searcher_concentration)
-        bound_fraction = 1 - prob_distr[0]
+        bound_fraction = 1 - prob_distr.T[0]
         return bound_fraction
 
-    def plot_landscape(self, axes=None):
+    def plot_off_target_landscape(self, axes=None):
         """
         Creates a line plot of the off-target landscape on top of the
         on-target landscape.
