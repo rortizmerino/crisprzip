@@ -21,32 +21,15 @@ class Searcher:
         at a particular R-loop position. Has length N.
     forward_rates: dict
         Specifies the forward rates in the model. Should contain 'k_on'
-        (at reference concentration 1 nM), 'k_f' and 'k_clv' (zero when
-        searcher is catalytically dead).
+        (at reference concentration 1 nM), 'k_f' and 'k_clv'.
     pam_detection: bool
-        If true, the landscape includes a PAM recognition state.
-    catalytic_dead: bool
-        If true, the searcher does not cleave.
+        If true, the landscape includes a PAM recognition state. True
+        by default.
 
     Methods
     _______
-    solve_master_equation()
-        Solves Master equation, giving time evolution of the landscape
-        occupancy
-    get_cleaved_fraction()
-        Returns the fraction of cleaved targets after a specified time
-        (for active searchers)
-    get_effective_cleavage_rate()
-        Returns the effective rate at which the searcher transitions
-        from the PAM state (if present, otherwise b=1) to the cleaved
-        state (for active searchers)
-    get_cleavage_probability()
-        Returns the probability that a searcher in the PAM state (if
-        present, otherwise b=1) cleaves a target before having left it
-        (for active searchers)
-    get_bound_fraction()
-        Returns the fraction of bound targets after a specified time
-        (for dead searchers)
+    probe_target(target_mismatches)
+        Returns a SearcherTargetComplex object
     plot_landscape()
         Creates a line plot of the on- or off-target landscape
     plot_penalties()
@@ -57,7 +40,7 @@ class Searcher:
                  on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray,
                  forward_rates: dict,
-                 pam_detection=True, catalytic_dead=False):
+                 pam_detection=True):
         """Constructor method"""
 
         # check whether parameters are 1d arrays
@@ -76,15 +59,9 @@ class Searcher:
             raise ValueError('Forward rates dictionary should include k_on, '
                              'k_f and k_clv as keys')
 
-        # check whether cleavage rate agrees with catalytic status
-        if (forward_rates['k_clv'] == 0) != catalytic_dead:
-            raise ValueError('Cleavage rate does not corresponds to '
-                             'catalytic activity')
-
         # assign values
         self.guide_length = guide_length
         self.pam_detection = pam_detection
-        self.catalytic_dead = catalytic_dead
 
         self.on_target_landscape = on_target_landscape
         self.mismatch_penalties = mismatch_penalties
@@ -106,14 +83,12 @@ class Searcher:
         )
         return forward_rate_array
 
-    def probe_target(self, target_mismatches):
+    def probe_target(self, target_mismatches: np.array):
         """Returns SearcherTargetComplex object"""
         return SearcherTargetComplex(self.on_target_landscape,
                                      self.mismatch_penalties,
                                      self.forward_rate_dict,
                                      target_mismatches)
-
-    # --- PLOTTING METHODS ---
 
     def plot_landscape(self, axes=None):
         """
@@ -123,10 +98,6 @@ class Searcher:
 
         Parameters
         ----------
-        target_mismatches: ndarray
-            Vector, equally long as the guide, where entries 0 and 1
-            indicate the positions of matching and mismatching bases
-            on an (off-)target
         axes: matplotlib.Axes
             (optional) axes object to which plot can be added
 
@@ -151,32 +122,14 @@ class Searcher:
             )
             pass
 
-        # obtaining on- and off-target landscapes, adding solution
+        if axes is None:
+            axes = plt.subplot()
+
+        # obtaining on-target landscape, adding solution
         # states at zero energy
         on_target_landscape = np.concatenate(
             (np.zeros(1), self.on_target_landscape, np.zeros(1))
         )
-
-        if axes is None:
-            axes = plt.subplot()
-
-        # TODO: overrule for the SearcherTargetComplex
-        #if target_mismatches is not None:
-        #    plot_off_landscape = True
-        #    off_target_landscape = np.concatenate(
-        #        (np.zeros(1),
-        #         self.__get_off_target_landscape(target_mismatches),
-        #         np.zeros(1))
-        #    )
-        #else:
-        #    plot_off_landscape = False
-        #    off_target_landscape = None
-        # making landscape plots
-        #if plot_off_landscape:
-        #    plot_landscape_line(on_target_landscape, 'lightgray')
-        #    plot_landscape_line(off_target_landscape, 'firebrick')
-        #else:
-        #    plot_landscape_line(on_target_landscape, 'cornflowerblue')
 
         plot_landscape_line(on_target_landscape, 'cornflowerblue')
 
@@ -190,7 +143,7 @@ class Searcher:
                 ['S'] + self.pam_detection * ['P'] + ['1'] +
                 ['' + (x % 5 == 0) * str(x) for x in
                  range(2, self.guide_length)] +
-                [str(self.guide_length)] + (1 - self.catalytic_dead) * ['C']
+                [str(self.guide_length)] + ['C']
         )
         axes.set_xticklabels(x_tick_labels, rotation=0)
         axes.tick_params(axis='both', labelsize=10)
@@ -243,6 +196,55 @@ class Searcher:
 
 
 class SearcherTargetComplex(Searcher):
+    """
+    Characterizes the hybridization landscape of a nucleic acid guided
+    searcher on a particular (off-)target sequence. Assumes a reference
+    concentration of 1 nM.
+
+    Attributes
+    ----------
+    guide_length: int
+        N, length of the nucleic acid guide (in bp)
+    target_mismatches: ndarray
+        Positions of mismatches in the guide-target hybrid: has length
+        N, with entries 0 (matches) and 1 (mismatches).
+    on_target_landscape: ndarray
+        Contains the hybridization energies of the intermediate R-loop
+        states on an on-target. In presence of a PAM state, it has
+        length N+1.
+    off_target_landscape: ndarray
+        Contains the hybridization energies of the intermediate R-loop
+        states on the current off-target. In presence of a PAM state,
+        it has length N+1.
+    mismatch_penalties: ndarray
+        Contains the energetic penalties associated with a mismatch
+        at a particular R-loop position. Has length N.
+    forward_rates: dict
+        Specifies the forward rates in the model. Should contain 'k_on'
+        (at reference concentration 1 nM), 'k_f' and 'k_clv'.
+    pam_detection: bool
+        If true, the landscape includes a PAM recognition state. True
+        by default.
+
+    Methods
+    _______
+    get_cleavage_probability()
+        Returns the probability that a searcher in the PAM state (if
+        present, otherwise b=1) cleaves a target before having left it
+        (for active searchers)
+    solve_master_equation(time, searcher_concentration)
+        Solves Master equation, giving time evolution of the landscape
+        occupancy
+    get_cleaved_fraction(time, searcher_concentration)
+        Returns the fraction of cleaved targets after a specified time
+        (for active searchers)
+    get_bound_fraction(time_searcher_concentration)
+        Returns the fraction of bound targets after a specified time
+        (for dead searchers)
+    plot_landscape()
+        Creates a line plot of the off-target landscape
+    """
+
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, forward_rates: dict,
                  target_mismatches: np.ndarray):
@@ -258,8 +260,6 @@ class SearcherTargetComplex(Searcher):
 
         self.off_target_landscape = self.__get_off_target_landscape()
         self.backward_rate_array = self.__get_backward_rate_array()
-
-    # --- BASIC (PRIVATE) METHODS ---
 
     def __get_off_target_landscape(self):
         """Adds penalties due to mismatches to landscape"""
@@ -317,10 +317,6 @@ class SearcherTargetComplex(Searcher):
 
         Parameters
         ----------
-        target_mismatches: ndarray
-            Vector, equally long as the guide, where entries 0 and 1
-            indicate the positions of matching and mismatching bases
-            on an (off-)target
         initial_condition: ndarray
             Vector showing the initial occupancy on the hybridization
             landscape. Has length guide_length+3 (if PAM_detection is
@@ -358,20 +354,24 @@ class SearcherTargetComplex(Searcher):
         landscape_occupancy = matrix_exponent.dot(initial_condition)
         return landscape_occupancy
 
-    # --- METHODS FOR ACTIVE SEARCHERS ---
+    def get_cleavage_probability(self) -> float:
+        """Returns the probability that a searcher in the PAM state (if
+        present, otherwise b=1) cleaves a target before having left
+        it"""
+
+        forward_rates = self.forward_rate_array[1:-1]
+        backward_rates = self.backward_rate_array[1:-1]
+        gamma = backward_rates / forward_rates
+        cleavage_probability = 1 / (1 + gamma.cumprod().sum())
+        return cleavage_probability
 
     def get_cleaved_fraction(self, time: float,
                              searcher_concentration: float = 1.0) -> float:
         """
         Returns the fraction of cleaved targets after a specified time
-        (for active searchers)
 
         Parameters
         ----------
-        target_mismatches: ndarray
-            Vector, equally long as the guide, where entries 0 and 1
-            indicate the positions of matching and mismatching bases
-            on an (off-)target
         time: float
             Time at which the cleaved fraction is calculated
         searcher_concentration: float
@@ -385,11 +385,6 @@ class SearcherTargetComplex(Searcher):
             t.
         """
 
-        # check if searcher is catalytically active
-        if self.catalytic_dead:
-            raise ValueError('Cannot obtain cleaved fraction for '
-                             'catalytically dead searcher')
-
         unbound_state = np.concatenate(
             (np.ones(1), np.zeros(self.on_target_landscape.size + 1))
         )
@@ -398,81 +393,15 @@ class SearcherTargetComplex(Searcher):
         cleaved_fraction = prob_distr[-1]
         return cleaved_fraction
 
-    def get_effective_cleavage_rate(self) -> float:
-        """
-        Returns the effective rate at which the searcher transitions
-        from the PAM state (if present, otherwise b=1) to the cleaved
-        state (for active searchers)
-
-        Parameters
-        ----------
-        target_mismatches: ndarray
-            Vector, equally long as the guide, where entries 0 and 1
-            indicate the positions of matching and mismatching bases
-            on an (off-)target
-
-        Returns
-        -------
-        effective_cleavage_rate: float
-            effective cleavage rate from PAM state (or b=1)
-        """
-
-        # check if searcher is catalytically active
-        if self.catalytic_dead:
-            raise ValueError('Cannot obtain cleavage probability for '
-                             'catalytically dead searcher')
-
-        forward_rates = self.forward_rate_array[1:-1]
-        backward_rates = self.backward_rate_array[1:-1]
-        gamma = backward_rates / forward_rates
-        effective_cleavage_rate = backward_rates[0] / gamma.cumprod().sum()
-        return effective_cleavage_rate
-
-    def get_cleavage_probability(self) -> float:
-        """
-        Returns the probability that a searcher in the PAM state (if
-        present, otherwise b=1) cleaves a target before having left it
-        (for active searchers)
-
-        Parameters
-        ----------
-        target_mismatches: ndarray
-            Vector, equally long as the guide, where entries 0 and 1
-            indicate the positions of matching and mismatching bases
-            on an (off-)target
-
-        Returns
-        -------
-        cleavage_probability: float
-            probability of cleavage before leaving from the PAM state
-            (or b=1)
-        """
-
-        # check if searcher is catalytically active
-        if self.catalytic_dead:
-            raise ValueError('Cannot obtain cleavage probability for '
-                             'catalytically dead searcher')
-
-        forward_rates = self.forward_rate_array[1:-1]
-        backward_rates = self.backward_rate_array[1:-1]
-        gamma = backward_rates / forward_rates
-        cleavage_probability = 1 / (1 + gamma.cumprod().sum())
-        return cleavage_probability
-
-    # --- METHODS FOR DEAD SEARCHERS ---
-
     def get_prob_bound(self, time: float, searcher_concentration: float = 1.0)\
             -> float:
         """
-        Returns the fraction of bound targets after a specified time
-        (for dead searchers)
+        Returns the fraction of bound targets after a specified time,
+        assuming that searcher is catalytically dead/inactive.
+
 
         Parameters
         ----------
-        target_mismatches: ndarray
-            Vector, equally long as the guide, where entries 0 and 1
-            indicate the positions of matching and mismatching bases
-            on an (off-)target
         time: float
             Time at which the cleaved fraction is calculated
         searcher_concentration: float
@@ -486,15 +415,89 @@ class SearcherTargetComplex(Searcher):
             t.
         """
 
-        # check if searcher is catalytically dead
-        if not self.catalytic_dead:
-            raise ValueError('Cannot obtain binding probability for '
-                             'catalytically active searcher')
-
         unbound_state = np.concatenate(
             (np.ones(1), np.zeros(self.on_target_landscape.size + 1))
         )
-        prob_distr = self.solve_master_equation(unbound_state, time,
+        # setting up clone SearcherTargetComplex object with zero
+        # catalytic activity, k_clv=0
+        dead_forward_rate_dict = self.forward_rate_dict.copy()
+        dead_forward_rate_dict['k_clv'] = 0
+        dead_searcher = SearcherTargetComplex(
+            on_target_landscape=self.on_target_landscape,
+            mismatch_penalties=self.mismatch_penalties,
+            forward_rates=dead_forward_rate_dict,
+            target_mismatches=self.target_mismatches
+        )
+
+        prob_distr =\
+            dead_searcher.solve_master_equation(unbound_state, time,
                                                 searcher_concentration)
         bound_fraction = 1 - prob_distr[0]
         return bound_fraction
+
+    def plot_landscape(self, axes=None):
+        """
+        Creates a line plot of the off-target landscape on top of the
+        on-target landscape.
+
+        Parameters
+        ----------
+        axes: matplotlib.Axes
+            (optional) axes object to which plot can be added
+
+        Returns
+        -------
+        axes: matplotlib.Axes
+            axes object with landscape line plots.
+        """
+
+        # line plot definition for both landscapes
+        def plot_landscape_line(landscape, color):
+            axes.plot(
+                np.arange(landscape.size) - 1 * self.pam_detection,
+                landscape,
+                color=color,
+                linewidth=2,
+                marker="o",
+                markersize=8,
+                markeredgewidth=2,
+                markeredgecolor=color,
+                markerfacecolor="white"
+            )
+            pass
+
+        if axes is None:
+            axes = plt.subplot()
+
+        # obtaining on- and off-target landscapes, adding solution
+        # states at zero energy
+        on_target_landscape = np.concatenate(
+            (np.zeros(1), self.on_target_landscape, np.zeros(1))
+        )
+        off_target_landscape = np.concatenate(
+            (np.zeros(1), self.off_target_landscape, np.zeros(1))
+        )
+
+        # making landscape plots
+        plot_landscape_line(on_target_landscape, 'lightgray')
+        plot_landscape_line(off_target_landscape, 'firebrick')
+
+        # window dressing
+        axes.set_xlabel(r'Targeting progression $b$', fontsize=12)
+        axes.set_ylabel(r'Free energy ($k_BT$)', fontsize=12)
+        axes.set_xticks(
+            np.arange(on_target_landscape.size) - 1 * self.pam_detection
+        )
+        x_tick_labels = (
+                ['S'] + self.pam_detection * ['P'] + ['1'] +
+                ['' + (x % 5 == 0) * str(x) for x in
+                 range(2, self.guide_length)] +
+                [str(self.guide_length)] + ['C']
+        )
+        axes.set_xticklabels(x_tick_labels, rotation=0)
+        axes.tick_params(axis='both', labelsize=10)
+        axes.grid('on')
+        sns.set_style('ticks')
+        sns.despine(ax=axes)
+
+        return axes
