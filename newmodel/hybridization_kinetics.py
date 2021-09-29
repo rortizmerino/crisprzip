@@ -84,6 +84,17 @@ class Searcher:
         )
         return forward_rate_array
 
+    def generate_dead_clone(self):
+        """Returns Searcher object with zero catalytic activity"""
+        dead_forward_rate_dict = self.forward_rate_dict.copy()
+        dead_forward_rate_dict['k_clv'] = 0
+        dead_searcher = Searcher(
+            on_target_landscape=self.on_target_landscape,
+            mismatch_penalties=self.mismatch_penalties,
+            forward_rates=dead_forward_rate_dict
+        )
+        return dead_searcher
+
     def probe_target(self, target_mismatches: np.array):
         """Returns SearcherTargetComplex object"""
         return SearcherTargetComplex(self.on_target_landscape,
@@ -262,6 +273,13 @@ class SearcherTargetComplex(Searcher):
         self.off_target_landscape = self.__get_off_target_landscape()
         self.backward_rate_array = self.__get_backward_rate_array()
 
+    def generate_dead_clone(self):
+        """Returns SearcherTargetComplex object with zero catalytic
+        activity"""
+        dead_searcher = Searcher.generate_dead_clone(self)
+        dead_complex = dead_searcher.probe_target(self.target_mismatches)
+        return dead_complex
+
     def __get_off_target_landscape(self):
         """Adds penalties due to mismatches to landscape"""
         landscape_penalties = np.concatenate(
@@ -436,16 +454,11 @@ class SearcherTargetComplex(Searcher):
         # catalytic activity, k_clv=0
         dead_forward_rate_dict = self.forward_rate_dict.copy()
         dead_forward_rate_dict['k_clv'] = 0
-        dead_searcher = SearcherTargetComplex(
-            on_target_landscape=self.on_target_landscape,
-            mismatch_penalties=self.mismatch_penalties,
-            forward_rates=dead_forward_rate_dict,
-            target_mismatches=self.target_mismatches
-        )
+        dead_searcher_complex = self.generate_dead_clone()
 
         prob_distr =\
-            dead_searcher.solve_master_equation(unbound_state, time,
-                                                searcher_concentration)
+            dead_searcher_complex.solve_master_equation(unbound_state, time,
+                                                        searcher_concentration)
         bound_fraction = 1 - prob_distr.T[0]
         return bound_fraction
 
