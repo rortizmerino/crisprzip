@@ -1,0 +1,5 @@
+experiment_id,name,observable_name,observable_symbol
+10,CHAMP,association constant,K_A
+20,NucleaSeq,cleavage rate,k_clv
+31,HiTS-FLIP,association rate,k_on
+32,HiTS-FLIP,dissociation rate,k_off

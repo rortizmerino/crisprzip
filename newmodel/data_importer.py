@@ -3,8 +3,6 @@ from Bio.Seq import Seq
 from Bio.SeqUtils import nt_search
 
 
-# TEMPORARY, I GUESS
-
 def generate_empty_searcher_dataframe():
     searcher_df = pd.DataFrame(
         {'searcher_id': pd.Series([], dtype=int),
@@ -13,18 +11,6 @@ def generate_empty_searcher_dataframe():
          'canonical_PAM': pd.Series([], dtype=str),
          'guide_length': pd.Series([], dtype=int)}
     ).set_index('searcher_id')
-    return searcher_df
-
-
-def generate_full_searcher_dataframe():
-    searcher_df = generate_empty_searcher_dataframe()
-    searcher_df.loc[100] = ['WT SpCas9', '3\'-to-5\'', 'GGN', 20]
-    searcher_df.loc[201] = ['SpCas9-Hf1', '3\'-to-5\'', 'GGN', 20]
-    searcher_df.loc[202] = ['SpCas9-Enh', '3\'-to-5\'', 'GGN', 20]
-    searcher_df.loc[203] = ['SpCas9-Hypa', '3\'-to-5\'', 'GGN', 20]
-    searcher_df.loc[300] = ['Cas12a', '5\'-to-3\'', 'TTTV', 20]
-    searcher_df.loc[600] = ['Cascade', None, None, None]
-    searcher_df.loc[800] = ['AGO2', None, None, None]
     return searcher_df
 
 
@@ -53,8 +39,73 @@ def generate_empty_complex_dataframe():
     return complex_df
 
 
+def generate_empty_experiment_dataframe():
+    experiment_df = pd.DataFrame(
+        {'experiment_id': pd.Series([], dtype=int),
+         'name': pd.Series([], dtype=str),
+         'observable_name': pd.Series([], dtype=str),
+         'observable_symbol': pd.Series([], dtype=str)
+         }
+    ).set_index('experiment_id')
+    return experiment_df
+
+
+def generate_empty_dataset_dataframe():
+    dataset_df = pd.DataFrame(
+        {'dataset_id': pd.Series([], dtype=int),
+         'experiment_id': pd.Series([], dtype=int),
+         'label': pd.Series([], dtype=str),
+         'path': pd.Series([], dtype=str)
+         }
+    ).set_index('dataset_id')
+    return dataset_df
+
+
+def generate_empty_measurement_dataframe():
+    measurement_df = pd.DataFrame(
+        {'measurement_id': pd.Series([], dtype=int),
+         'dataset_id': pd.Series([], dtype=int),
+         'complex_id': pd.Series([], dtype=int),
+         'value': pd.Series([], dtype=float),
+         'error': pd.Series([], dtype=float)
+         }
+    ).set_index('measurement_id')
+    return measurement_df
+
+
 def generate_joint_dataframe(searcher_df, guide_df, complex_df):
-    pass
+    joint_df = complex_df.join(searcher_df, on='searcher_id')
+    joint_df = joint_df.join(guide_df, on='guide_id')
+    joint_df = joint_df[
+        ['type',
+         'protospacer_seq',
+         'target_seq',
+         'is_canonical_pam',
+         'is_on_target',
+         'mismatches']
+    ]
+    return joint_df
+
+
+def generate_full_searcher_dataframe():
+    searcher_df = generate_empty_searcher_dataframe()
+    searcher_df.loc[100] = ['WT SpCas9', '3\'-to-5\'', 'GGN', 20]
+    searcher_df.loc[201] = ['SpCas9-Hf1', '3\'-to-5\'', 'GGN', 20]
+    searcher_df.loc[202] = ['SpCas9-Enh', '3\'-to-5\'', 'GGN', 20]
+    searcher_df.loc[203] = ['SpCas9-Hypa', '3\'-to-5\'', 'GGN', 20]
+    searcher_df.loc[300] = ['Cas12a', '5\'-to-3\'', 'TTTV', 20]
+    searcher_df.loc[600] = ['Cascade', None, None, None]
+    searcher_df.loc[800] = ['AGO2', None, None, None]
+    return searcher_df
+
+
+def generate_full_experiment_dataframe():
+    experiment_df = generate_empty_experiment_dataframe()
+    experiment_df.loc[10] = ['CHAMP', 'association constant', 'K_A']
+    experiment_df.loc[20] = ['NucleaSeq', 'cleavage rate', 'k_clv']
+    experiment_df.loc[31] = ['HiTS-FLIP', 'association rate', 'k_on']
+    experiment_df.loc[32] = ['HiTS-FLIP', 'dissociation rate', 'k_off']
+    return experiment_df
 
 
 def generate_sample_guide_complex_dataframe():
@@ -138,27 +189,53 @@ def generate_sample_guide_complex_dataframe():
         idx += 1
 
     # finishing off
-    off_targets_df.sort_values(['mm_num', 'target_seq', 'pam_seq'])
+    off_targets_df = off_targets_df.sort_values(
+        ['mm_num', 'target_seq', 'pam_seq']
+    )
     off_targets_df = off_targets_df.drop(columns=['mm_num'])
     off_targets_df = off_targets_df.drop_duplicates()
     off_targets_df = off_targets_df.reset_index(drop=True)
     off_targets_df.index += 1
     complex_df = complex_df.append(off_targets_df)
 
-    return guide_df, complex_df
+    # Also, we obtain the dataframes with the experimental results
+    experiment_df = generate_full_experiment_dataframe()
+    dataset_df = generate_empty_dataset_dataframe()
+    measurement_df = generate_empty_measurement_dataframe()
 
+    # get the id of NucleaSeq in the experiment df
+    experiment_id = experiment_df.index[experiment_df['name'] == 'NucleaSeq']\
+        .tolist()[0]
 
-# THESE FUNCTIONS SHOULD ULTIMATELY DEAL WITH DATA IMPORT
+    # make a dataset entry
+    dataset_df.loc[0] = [experiment_id, 'Misha\'s prepared NucleaSeq data',
+                         "C:\\Users\\HP\\depkengit\\CRISPR_kinetic_model\\"
+                         "data_experiment\\NucleaSeq_dataset.csv"
+                         ]
 
-def collect_champ_data():
-    file_path = 'C:/Users/HP/depkengit/CRISPR_kinetic_model/' + \
-                'data_experiment/Weighted_Average_Champ_nucleaseq/'
-    file_name = 'TargetE-dCas9_AbsoluteABA_Canonical_OT-r_0-20.csv'
-    champ_df = pd.read_csv(file_path + file_name)
-    pass
+    # now get the data and store them
+    j = 0
+    for i in df_raw.index:
+        pam = df_raw.loc[i, 'Sequence'][-1:-4:-1]  # off-target pam
+        target = df_raw.loc[i, 'Sequence'][-4:-24:-1]  # off-target content
+        complex_ids = complex_df.index[
+            (complex_df['pam_seq'] == pam) &
+            (complex_df['target_seq'] == target)
+        ].tolist()
+        if len(complex_ids) == 1:
 
+            value = df_raw.loc[i, 'cleavage_rate']
+            error = max(
+                (df_raw.loc[i, 'cleavage_rate'] -
+                 df_raw.loc[i, 'cleavage_rate_5th_pctl']),
+                (df_raw.loc[i, 'cleavage_rate_95th_pctl'] -
+                 df_raw.loc[i, 'cleavage_rate'])
+            )  # for error, take the longer side of the confidence int.
 
-def collect_nucleaseq_data():
-    file_path = 'data_experiment/Weighted_Average_Champ_nucleaseq/'
-    file_name = 'ECas9_log_cleavage_rate_and_y0_Canonical_OT-r_0-2.csv'
-    pass
+            measurement_df.loc[j] = [0, complex_ids[0], value, error]
+            j += 1
+
+    measurement_df = measurement_df.astype({'complex_id': int,
+                                            'dataset_id': int})
+
+    return guide_df, complex_df, dataset_df, measurement_df
