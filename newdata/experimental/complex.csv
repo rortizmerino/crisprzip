@@ -1,5 +1,8 @@
 ,searcher_id,guide_id,pam_seq,target_seq,mutations,mismatches,is_canonical_pam,is_on_target
-0,100,0,GGN,CGCAGAGTAGAAATACGCAG,[],{},True,True
+0,100,0,GGA,CGCAGAGTAGAAATACGCAG,[],{},True,True
+1,100,0,GGC,CGCAGAGTAGAAATACGCAG,[],{},True,True
+2,100,0,GGG,CGCAGAGTAGAAATACGCAG,[],{},True,True
+3,100,0,GGT,CGCAGAGTAGAAATACGCAG,[],{},True,True
 1,100,0,GGA,AGCAGAGTAGAAATACGCAG,['C01A'],{1: 'rG:dA'},True,False
 2,100,0,GGC,AGCAGAGTAGAAATACGCAG,['C01A'],{1: 'rG:dA'},True,False
 3,100,0,GGG,AGCAGAGTAGAAATACGCAG,['C01A'],{1: 'rG:dA'},True,False
