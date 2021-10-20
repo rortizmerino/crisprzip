@@ -199,8 +199,7 @@ def generate_sample_guide_complex_dataframe():
     off_targets_df = off_targets_df.drop(columns=['mm_num'])
     off_targets_df = off_targets_df.drop_duplicates()
     off_targets_df = off_targets_df.reset_index(drop=True)
-    off_targets_df.index += 1
-    complex_df = complex_df.append(off_targets_df)
+    complex_df = complex_df.append(off_targets_df, ignore_index=True)
 
     # Also, we obtain the dataframes with the experimental results
     experiment_df = generate_full_experiment_dataframe()
@@ -245,7 +244,8 @@ def generate_sample_guide_complex_dataframe():
 
 
 def main():
-    _ = generate_sample_guide_complex_dataframe()
+    guide_df, complex_df, dataset_df, measurement_df =\
+        generate_sample_guide_complex_dataframe()
     pass
 
 
