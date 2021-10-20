@@ -127,7 +127,7 @@ def generate_sample_guide_complex_dataframe():
 
     # This data is for wildtype SpCas9 (I presume)
     wt_sp_cas9_id = 100
-    wt_sp_cas9_pam = 'GGN'
+    wt_sp_cas9_pam = ['GGA', 'GGC', 'GGG', 'GGT']
 
     # First, we identify the on-target (protospacer & guide content)
     df_on_target = df_raw.loc[
@@ -138,8 +138,12 @@ def generate_sample_guide_complex_dataframe():
     # Add the guide to the guide dataframe
     guide_df.loc[0] = [guide_content, protospacer_content]
     # ... and as an off-target to the complex dataframe
-    complex_df.loc[0] = [wt_sp_cas9_id, 0, wt_sp_cas9_pam, protospacer_content,
-                         [], {}, True, True]
+    for k in range(len(wt_sp_cas9_pam)):
+        complex_df.loc[k] = [wt_sp_cas9_id,
+                             0,
+                             wt_sp_cas9_pam[k],
+                             protospacer_content,
+                             [], {}, True, True]
 
     # Second, we write an off-target dataframe
     df_raw_off = df_raw.copy().loc[df_raw['Mutation ID'] != 'OT']
@@ -181,8 +185,8 @@ def generate_sample_guide_complex_dataframe():
         off_targets_df.loc[idx, 'mutations'] = str(mut_list)
         off_targets_df.loc[idx, 'mismatches'] = str(mm_dict)
         off_targets_df.loc[idx, 'is_canonical_pam'] = \
-            nt_search(off_targets_df.loc[idx, 'pam_seq'], wt_sp_cas9_pam)[
-            1:] == [0]
+            (off_targets_df.loc[idx, 'pam_seq'] in wt_sp_cas9_pam)
+        # The above does not include ambiguous 'N' base pair
         off_targets_df.loc[idx, 'is_on_target'] = mm_dict == {}
         off_targets_df.loc[idx, 'mm_num'] = len(mm_dict)
 
@@ -204,7 +208,7 @@ def generate_sample_guide_complex_dataframe():
     measurement_df = generate_empty_measurement_dataframe()
 
     # get the id of NucleaSeq in the experiment df
-    experiment_id = experiment_df.index[experiment_df['name'] == 'NucleaSeq']\
+    experiment_id = experiment_df.index[experiment_df['name'] == 'NucleaSeq'] \
         .tolist()[0]
 
     # make a dataset entry
@@ -214,16 +218,15 @@ def generate_sample_guide_complex_dataframe():
                          ]
 
     # now get the data and store them
-    j = 0
+    k = 0
     for i in df_raw.index:
         pam = df_raw.loc[i, 'Sequence'][-1:-4:-1]  # off-target pam
         target = df_raw.loc[i, 'Sequence'][-4:-24:-1]  # off-target content
         complex_ids = complex_df.index[
             (complex_df['pam_seq'] == pam) &
             (complex_df['target_seq'] == target)
-        ].tolist()
-        if len(complex_ids) == 1:
-
+            ].tolist()
+        for j in complex_ids:
             value = df_raw.loc[i, 'cleavage_rate']
             error = max(
                 (df_raw.loc[i, 'cleavage_rate'] -
@@ -232,10 +235,19 @@ def generate_sample_guide_complex_dataframe():
                  df_raw.loc[i, 'cleavage_rate'])
             )  # for error, take the longer side of the confidence int.
 
-            measurement_df.loc[j] = [0, complex_ids[0], value, error]
-            j += 1
+            measurement_df.loc[k] = [0, j, value, error]
+            k += 1
 
     measurement_df = measurement_df.astype({'complex_id': int,
                                             'dataset_id': int})
 
     return guide_df, complex_df, dataset_df, measurement_df
+
+
+def main():
+    _ = generate_sample_guide_complex_dataframe()
+    pass
+
+
+if __name__ == '__main__':
+    main()
