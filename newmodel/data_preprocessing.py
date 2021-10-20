@@ -3,6 +3,10 @@ import ast
 
 
 def find_mismatch_positions(complex_df):
+    """
+    Given a dataframe with the complexes of interest, produces a pandas
+    series with the mismatch arrays as strings (e.g. '0100000100000')
+    """
     complex_df = complex_df.copy()
     for i in complex_df.index:
         mismatch_dict = complex_df.loc[i, 'mismatches']
@@ -22,6 +26,11 @@ def find_mismatch_positions(complex_df):
 
 
 def get_mismatch_map_dict(complex_df):
+    """
+    Given a dataframe with the complexes of interest, produces a
+    'mismatch map', i.e. a dictionary with unique mismatch arrays
+    ('00010...') as keys and corresponding complex indexes as values.
+    """
     mismatch_positions = find_mismatch_positions(complex_df)
     mismatch_dict = {}
     for array in mismatch_positions.unique():
@@ -31,6 +40,26 @@ def get_mismatch_map_dict(complex_df):
 
 
 def aggregate_measurements(measurement_df, mismatch_map, agg_func):
+    """
+    Aggregates data on a complex level to the mismatch array level.
+
+    Parameters
+    ----------
+    measurement_df: pd.DataFrame
+        Containing the original data that should be aggregated
+    mismatch_map: dict
+        Relates mismatch arrays ('00010...') to complex ids
+    agg_func: func
+        Takes a subset of the measurement dataframe as an argument and
+        aggregates the 'value' and 'error' columns inside it.
+
+    Returns
+    -------
+    agg_measurement_df: pd.DataFrame
+        Gives the aggregate value and error of each mismatch array in
+        the original measurement dataframe
+    """
+
     agg_measurement_df = pd.DataFrame(
         {'mismatch_positions': pd.Series([], dtype=str),
          'agg_value': pd.Series([], dtype=float),
@@ -49,6 +78,11 @@ def aggregate_measurements(measurement_df, mismatch_map, agg_func):
 
 
 def weigh_by_error(measurement_df):
+    """
+    Aggregation function. Takes a weighted average of the input
+    dataframe, according to the relative error. Similar to Behrouz and
+    Misha's method, although it is not log10-based.
+    """
     relative_error = measurement_df['error'] / measurement_df['value']
     weights = relative_error**(-2)
     normalized_weights = weights / weights.sum()
