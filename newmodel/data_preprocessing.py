@@ -95,21 +95,31 @@ def weigh_by_error(measurement_df):
     return weighted_average_value, weighted_average_error
 
 
-def main():
-    complex_df =\
+def get_sample_aggregate_data():
+    """
+    Generates sample aggregated data, collecting everything from the
+    sample dataset as prepared by Behrouz and Misha
+    """
+
+    full_complex_df = \
         pd.read_csv('../newdata/experimental/complex.csv', index_col=0)
-    measurement_df =\
+    full_measurement_df = \
         pd.read_csv('../newdata/experimental/measurement.csv', index_col=0)
 
-    mm_dict = get_mismatch_map_dict(complex_df)
+    sample_dataset_id = 0
+    measurement_df = full_measurement_df.loc[
+        full_measurement_df['dataset_id'] == sample_dataset_id
+    ]
+    mm_dict = get_mismatch_map_dict(full_complex_df)
 
-    B = aggregate_measurements(
+    aggregate_data = aggregate_measurements(
         measurement_df,
         mm_dict,
         weigh_by_error
     )
-    pass
+    return aggregate_data
 
 
 if __name__ == '__main__':
-    main()
+    _ = get_sample_aggregate_data()
+

@@ -6,6 +6,9 @@ import seaborn as sns
 
 
 class Searcher:
+
+    # TODO: is there any way to parallelize this for multiple guides?
+
     """
     Characterizes the hybridization landscape of a nucleic acid guided
     searcher. Assumes a reference concentration of 1 nM.
@@ -14,10 +17,10 @@ class Searcher:
     ----------
     guide_length: int
         N, length of the nucleic acid guide (in bp)
-    on_target_landscape: ndarray
+    on_target_landscape: array_like
         Contains the hybridization energies of the intermediate R-loop
         states. In presence of a PAM state, it has length N+1.
-    mismatch_penalties: ndarray
+    mismatch_penalties: array_like
         Contains the energetic penalties associated with a mismatch
         at a particular R-loop position. Has length N.
     forward_rates: dict
@@ -37,12 +40,21 @@ class Searcher:
         Creates a bar plot of the mismatch penalties
     """
 
+    # TODO: research whether input checks slow down init method
+    # TODO: would logarithmic input of rates speed this up?
+
     def __init__(self,
-                 on_target_landscape: np.ndarray,
-                 mismatch_penalties: np.ndarray,
+                 on_target_landscape: npt.ArrayLike,
+                 mismatch_penalties: npt.ArrayLike,
                  forward_rates: dict,
                  pam_detection=True):
         """Constructor method"""
+
+        # convert on_target_landscape and mismatch_penalties to numpy
+        if (type(on_target_landscape) != np.ndarray or
+                type(mismatch_penalties) != np.ndarray):
+            on_target_landscape = np.array(on_target_landscape)
+            mismatch_penalties = np.array(mismatch_penalties)
 
         # check whether parameters are 1d arrays
         if on_target_landscape.ndim > 1 or mismatch_penalties.ndim > 1:
@@ -208,6 +220,9 @@ class Searcher:
 
 
 class SearcherTargetComplex(Searcher):
+
+    # TODO: is there any way to parallelize this for multiple targets?
+
     """
     Characterizes the hybridization landscape of a nucleic acid guided
     searcher on a particular (off-)target sequence. Assumes a reference
@@ -306,7 +321,7 @@ class SearcherTargetComplex(Searcher):
         )
         return backward_rate_array
 
-    def __get_rate_matrix(self, searcher_concentration: float = 1.0)\
+    def __get_rate_matrix(self, searcher_concentration: float = 1.0) \
             -> np.ndarray:
         """Sets up the rate matrix describing the master equation"""
 
@@ -330,6 +345,9 @@ class SearcherTargetComplex(Searcher):
                               time: npt.ArrayLike,
                               searcher_concentration: float = 1.0,
                               rebinding=True) -> np.ndarray:
+
+        # TODO: can matrix exponentiation be sped up (in C?)
+
         """
         Calculates how the occupancy of the landscape states evolves by
         evaluating the master equation. Absorbing states (solution and
@@ -397,7 +415,7 @@ class SearcherTargetComplex(Searcher):
         return cleavage_probability
 
     def get_cleaved_fraction(self, time: npt.ArrayLike,
-                             searcher_concentration: float = 1.0)\
+                             searcher_concentration: float = 1.0) \
             -> npt.ArrayLike:
         """
         Returns the fraction of cleaved targets after a specified time
@@ -426,7 +444,7 @@ class SearcherTargetComplex(Searcher):
         return cleaved_fraction
 
     def get_bound_fraction(self, time: npt.ArrayLike,
-                           searcher_concentration: float = 1.0)\
+                           searcher_concentration: float = 1.0) \
             -> npt.ArrayLike:
         """
         Returns the fraction of bound targets after a specified time,
@@ -456,7 +474,7 @@ class SearcherTargetComplex(Searcher):
         dead_forward_rate_dict['k_clv'] = 0
         dead_searcher_complex = self.generate_dead_clone()
 
-        prob_distr =\
+        prob_distr = \
             dead_searcher_complex.solve_master_equation(unbound_state, time,
                                                         searcher_concentration)
         bound_fraction = 1 - prob_distr.T[0]
