@@ -6,7 +6,6 @@ import seaborn as sns
 
 
 class Searcher:
-
     # TODO: is there any way to parallelize this for multiple guides?
 
     """
@@ -220,7 +219,6 @@ class Searcher:
 
 
 class SearcherTargetComplex(Searcher):
-
     # TODO: is there any way to parallelize this for multiple targets?
 
     """
@@ -380,28 +378,40 @@ class SearcherTargetComplex(Searcher):
         if initial_condition.size != (2 + self.on_target_landscape.size):
             raise ValueError('Initial condition should be of same length as'
                              'hybridization landscape')
-
         rate_matrix = self.__get_rate_matrix(searcher_concentration)
 
         # if rebinding is prohibited, on-rate should be zero
         if not rebinding:
             rate_matrix[:, 0] = 0
 
-        # set up for-loop over time iterable
-        if type(time) == int:
-            time = [time]  # Quick fix for int iteration issue
-        time_array = np.asarray(time)
-        landscape_occupancy = np.zeros((time_array.size,
-                                        initial_condition.size))
-        for i in range(time_array.size):
-            # where the magic happens; evaluating the master equation
-            matrix_exponent = linalg.expm(rate_matrix * time_array[i])
-            landscape_occupancy[i, :] = matrix_exponent.dot(initial_condition)
+        # trivial case
+        if time is int(0):
+            return initial_condition
 
-        # remove redundant dimensions
-        landscape_occupancy = np.squeeze(landscape_occupancy)
+        # making sure that time is a 1d ndarray
+        time = np.atleast_1d(time)
 
-        return landscape_occupancy
+        # where the magic happens; evaluating the master equation
+
+        # 1. diagonalize M = U D U_inv
+        eigenvals, eigenvecs = linalg.eig(rate_matrix)
+        eigenvecs_inv = linalg.inv(eigenvecs)
+
+        # 2. B = exp(Dt)
+        b_matrix = np.exp(np.tensordot(eigenvals.real, time, axes=0))
+        diag_b_matrix = (b_matrix *  # 2D b_matrix put on 3D diagonal
+                         np.repeat(np.eye(b_matrix.shape[0])[:, :, np.newaxis],
+                                   b_matrix.shape[1], axis=2))
+
+        # 3. exp(Mt) = U B U_inv = U exp(Dt) U_inv
+        exp_matrix = np.tensordot(eigenvecs.dot(diag_b_matrix),
+                                  eigenvecs_inv,
+                                  axes=((1,), (0,)))
+
+        # 4. P(t) = exp(Mt) P0
+        landscape_occupancy = exp_matrix.dot(initial_condition).swapaxes(0, 1)
+
+        return np.squeeze(landscape_occupancy)
 
     def get_cleavage_probability(self) -> float:
         """Returns the probability that a searcher in the PAM state (if
@@ -546,3 +556,28 @@ class SearcherTargetComplex(Searcher):
         sns.despine(ax=axes)
 
         return axes
+
+
+def main():
+    mm_positions = np.array(
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0])
+    p1 = Searcher(
+        on_target_landscape=np.array(
+            [4, 2, 5, 5, 2, 5, 1, 4, 2, 4, 6, 3, 4, 3, 3, 5, 6, 2, 2, 1, 3]),
+        mismatch_penalties=np.array(
+            [2, 2, 3, 3, 4, 5, 5, 4, 4, 4, 5, 4, 5, 4, 4, 2, 4, 2, 2, 3]),
+        forward_rates={'k_on': .02, 'k_f': 1, 'k_clv': .1},
+        pam_detection=True,
+    )
+    p2 = p1.probe_target(mm_positions)
+
+    p2.get_cleaved_fraction(1)
+    p2.get_cleaved_fraction(1E4)
+    p2.get_cleaved_fraction(0)
+    p2.get_cleaved_fraction(np.arange(1, 5))
+
+    pass
+
+
+if __name__ == '__main__':
+    main()
