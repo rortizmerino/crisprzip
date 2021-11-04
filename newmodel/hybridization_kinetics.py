@@ -407,21 +407,6 @@ class SearcherTargetComplex(Searcher):
         total_occupancy = np.sum(landscape_occupancy, axis=0)
         landscape_occupancy = landscape_occupancy / total_occupancy
 
-        # correct for failed diagonalization (>0.1% normalization error)
-        sloppy_solutions = np.abs(1 - total_occupancy) > 1e-3
-        for i in np.arange(len(time))[sloppy_solutions]:
-            landscape_occupancy[:, i] =\
-                linalg.expm(rate_matrix * time[i]).dot(initial_condition)
-            error_tuple = (np.abs(1 - total_occupancy[i]),
-                           np.abs(1 - np.sum(landscape_occupancy[:, i])))
-
-            if error_tuple[0] > error_tuple[1]:
-                print(f'Succesful!   Error from {error_tuple[0]:.4f} to '
-                      f'{error_tuple[1]:.4f}')
-            else:
-                print(f'Unsuccesful! Error from {error_tuple[0]:.4f} to '
-                      f'{error_tuple[1]:.4f}')
-
         return np.squeeze(landscape_occupancy.T)
 
     def get_cleavage_probability(self) -> float:
