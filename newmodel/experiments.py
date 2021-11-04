@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import optimize
+
 from hybridization_kinetics import Searcher
 
 
@@ -9,6 +10,7 @@ class Experiment:
     SearcherTargetComplex. Each experiment contains a simulation method
     that outputs some observable.
     """
+
     def __init__(self, searcher: Searcher):
         self.searcher = searcher
 
@@ -25,7 +27,7 @@ class NucleaSeq(Experiment):
         observable.
         """
         # Run parameters
-        time_points = np.array([0, 12, 60, 180, 600, 1800, 6000, 18000, 60000],
+        time_points = np.array([12, 60, 180, 600, 1800, 6000, 18000, 60000],
                                dtype=float)
         searcher_concentration = 1E6  # saturating Cas9 concentrations
 
@@ -36,11 +38,34 @@ class NucleaSeq(Experiment):
             searcher_concentration=searcher_concentration
         )
 
-        # Performing a linear fit in log space
-        fit_data = np.log(1 - cleaved_fraction)
-        def linear_func(t, k): return -k * t
-        k_clv_fit, k_clv_var = optimize.curve_fit(linear_func, time_points,
-                                                  fit_data)
+        # fit_data too close to 1 is stripped of to prevent log issues
+        fit_data = 1 - cleaved_fraction
+        valid_values = fit_data > 1E-9
+
+        # Linear fit if at least 5/8 fit values are acceptable
+        if np.sum(valid_values) > 4:
+
+            def linear_func(t, k):
+                return -k * t
+
+            k_clv_fit, k_clv_var = optimize.curve_fit(
+                linear_func,
+                time_points[valid_values],
+                np.log(fit_data[valid_values])
+            )
+
+        # (Slower) exponential fit if too few fit values are acceptable
+        else:
+
+            def exp_func(t, k):
+                return 1 - np.exp(-k * t)
+
+            k_clv_fit, k_clv_var = optimize.curve_fit(
+                exp_func,
+                time_points,
+                cleaved_fraction,
+                bounds=(0, np.inf)
+            )
 
         return k_clv_fit[0], k_clv_var[0, 0]
 
@@ -72,6 +97,7 @@ class Champ(Experiment):
 
         # Performing a fit on the Hill equation
         def hill_equation(c, const): return c / (c + 1 / const)
+
         const_fit, const_var = optimize.curve_fit(hill_equation, c_points,
                                                   bound_fraction)
         return const_fit[0], const_var[0, 0]
@@ -103,6 +129,7 @@ class HitsFlip(Experiment):
         # TODO: I have doubts whether the below is a good method
         # Performing a linear fit
         def linear_func(t, k): return -k * t
+
         k_on_fit, k_on_var = optimize.curve_fit(linear_func, time_points,
                                                 bound_fraction)
         return k_on_fit[0], k_on_var[0, 0]
@@ -150,7 +177,9 @@ class HitsFlip(Experiment):
         # Performing a linear fit in log space (different method than
         # reported in Eslami's 2021 manuscript)
         fit_data = np.log(1 - unbound_fraction)
+
         def linear_func(t, k): return -k * t
+
         k_off_fit, k_off_var = optimize.curve_fit(linear_func, time_points,
                                                   fit_data)
         return k_off_fit[0], k_off_var[0, 0]

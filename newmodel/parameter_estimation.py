@@ -9,6 +9,8 @@ from hybridization_kinetics import Searcher
 from experiments import NucleaSeq
 from data_preprocessing import get_sample_aggregate_data
 
+from codetiming import Timer
+
 
 def msd_lin_cost_function(simulated_values: np.ndarray,
                           data: np.ndarray,
@@ -24,6 +26,12 @@ def msd_log_cost_function(simulated_values: np.ndarray,
                           weights: np.ndarray):
     """Calculates the cost as a weighted sum over logarithmic MSD
     between model and data"""
+
+    if (np.any(simulated_values / data < 1e-300) or
+            np.any(simulated_values / data > 1e300)):
+        print('oops... that\'s an infinite penalty')
+        return float('inf')
+
     result = np.sum(weights * np.log10(simulated_values / data) ** 2)
     return result
 
@@ -94,12 +102,14 @@ def cost_wrt_nucleaseq(param_vector: np.ndarray,
         return k_clv_eff
 
     # Parallelization of targets
+    job_number = 2
+    # TODO: auto-assign core number on the basis of machine
+
     simulated_values = np.asarray(
-        Parallel(n_jobs=2)(
+        Parallel(n_jobs=job_number)(
             delayed(simulate_cleavage_rate)(i) for i in range(len(data.index))
         )
     )
-    # TODO: auto-assign core number on the basis of machine
 
     if log_fit:  # logarithmic MSD
         cost_func = msd_log_cost_function
@@ -117,23 +127,38 @@ def cost_wrt_nucleaseq(param_vector: np.ndarray,
 
 def main():
     N = 20
-
-    initial_param_vector = np.ones(2 * N + 4)
     aggregate_data = get_sample_aggregate_data()
 
-    opt_func = lambda param_vector: cost_wrt_nucleaseq(
-        param_vector,
-        aggregate_data,
-        log_fit=True
-    )
+    round_no = 21
+    time_list = [0, ] * round_no
+    for i in range(round_no):
+        print(f'ROUND {i + 1}')
 
-    out = basinhopping(func=opt_func,
-                       x0=initial_param_vector,
-                       niter=1,
-                       disp=True,
-                       niter_success=True)
+        random_param_vector = np.append(
+            np.random.rand(2 * N + 1) * 1E1,
+            np.random.rand(3) * 10 - 5
+        )
+        opt_func = lambda param_vector: cost_wrt_nucleaseq(
+            param_vector,
+            aggregate_data,
+            log_fit=True
+        )
 
-    return out
+        with Timer(text='Run time: {}') as t:
+            _ = opt_func(random_param_vector)
+        time_list[i] = t.last
+
+    print(f'Total time: {np.mean(time_list[1:]):.2f} \u00B1 '
+          f'{np.std(time_list[1:]):.2f} sec')
+
+    # out = basinhopping(func=opt_func,
+    #                   x0=initial_param_vector,
+    #                   niter=1,
+    #                   disp=True,
+    #                   niter_success=True)
+    # return out
+
+    pass
 
 
 if __name__ == '__main__':

@@ -403,7 +403,10 @@ class SearcherTargetComplex(Searcher):
         # 4. P(t) = exp(Mt) P0
         landscape_occupancy = exp_matrix.dot(initial_condition)
 
-        # normalizing P(t) to correct for rounding errors
+        # Avoiding negative occupancy (if present, these are tiny)
+        landscape_occupancy = np.maximum(landscape_occupancy,
+                                         np.zeros(landscape_occupancy.shape))
+        # Normalizing P(t) to correct for rounding errors
         total_occupancy = np.sum(landscape_occupancy, axis=0)
         landscape_occupancy = landscape_occupancy / total_occupancy
 
