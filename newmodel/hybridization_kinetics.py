@@ -6,7 +6,6 @@ import seaborn as sns
 
 
 class Searcher:
-    # TODO: is there any way to parallelize this for multiple guides?
 
     """
     Characterizes the hybridization landscape of a nucleic acid guided
@@ -38,9 +37,6 @@ class Searcher:
     plot_penalties()
         Creates a bar plot of the mismatch penalties
     """
-
-    # TODO: research whether input checks slow down init method
-    # TODO: would logarithmic input of rates speed this up?
 
     def __init__(self,
                  on_target_landscape: npt.ArrayLike,
@@ -219,8 +215,6 @@ class Searcher:
 
 
 class SearcherTargetComplex(Searcher):
-    # TODO: is there any way to parallelize this for multiple targets?
-
     """
     Characterizes the hybridization landscape of a nucleic acid guided
     searcher on a particular (off-)target sequence. Assumes a reference
@@ -344,8 +338,6 @@ class SearcherTargetComplex(Searcher):
                               searcher_concentration: float = 1.0,
                               rebinding=True) -> np.ndarray:
 
-        # TODO: can matrix exponentiation be sped up (in C?)
-
         """
         Calculates how the occupancy of the landscape states evolves by
         evaluating the master equation. Absorbing states (solution and
@@ -409,9 +401,14 @@ class SearcherTargetComplex(Searcher):
                                   axes=((1,), (0,)))
 
         # 4. P(t) = exp(Mt) P0
-        landscape_occupancy = exp_matrix.dot(initial_condition).swapaxes(0, 1)
+        landscape_occupancy = exp_matrix.dot(initial_condition)
 
-        return np.squeeze(landscape_occupancy)
+        # normalizing P(t) to correct for rounding errors
+        total_occupancy = np.sum(landscape_occupancy, axis=0)
+        assert np.all(np.abs(1 - total_occupancy) < 1e-9)
+        landscape_occupancy = landscape_occupancy / total_occupancy
+
+        return np.squeeze(landscape_occupancy.T)
 
     def get_cleavage_probability(self) -> float:
         """Returns the probability that a searcher in the PAM state (if
