@@ -267,7 +267,6 @@ class SearcherTargetComplex(Searcher):
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, forward_rates: dict,
                  target_mismatches: np.ndarray):
-        """Constructor method"""
         Searcher.__init__(self, on_target_landscape, mismatch_penalties,
                           forward_rates)
 

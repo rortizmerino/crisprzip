@@ -1,4 +1,6 @@
+from typing import Union
 import numpy as np
+import numpy.typing as npt
 from scipy import optimize
 
 from hybridization_kinetics import Searcher
@@ -6,13 +8,52 @@ from hybridization_kinetics import Searcher
 
 class Experiment:
     """
-    Represents an experiment being carried out on a Searcher or
-    SearcherTargetComplex. Each experiment contains a simulation method
-    that outputs some observable.
+    Represents an experiment being carried out. Contains some standard
+    methods for the more specific experiment subclasses (NucleaSeq/
+    CHAMP/HitsFlip)
     """
 
-    def __init__(self, searcher: Searcher):
-        self.searcher = searcher
+    # TODO: make constructor accept protospacer-target content too
+    def __init__(self,
+                 mismatch_array: Union[str, list, npt.ArrayLike],
+                 concentration: float = None,
+                 pam_sensing: bool = True):
+        self.mismatch_array = self.check_mismatch_array_format(mismatch_array)
+        self.concentration = concentration
+        self.pam_sensing = pam_sensing
+
+    @staticmethod
+    def check_mismatch_array_format(mismatch_array):
+        if type(mismatch_array) is np.ndarray:
+            return mismatch_array
+        if type(mismatch_array) in (str, list):
+            return np.array([int(nt) for nt in mismatch_array])
+
+    def make_searcher_target_complex(self, param_vector):
+        """Generates SearcherTargetComplex object on the basis of a
+        parameter vector with the following entries:
+          0 -    N  : on-target hybridization landscape (kBT) - length N+1
+        N+1 - 2N+1  : mismatch penalties (kBT)                - length N
+              2N+2  : log10( k_on  )
+              2N+3  : log10( k_f   )
+              2N+4  : log10( k_clv )
+        """
+
+        guide_length = int((len(param_vector) - 3 - self.pam_sensing) / 2)
+        searcher = Searcher(
+            on_target_landscape=param_vector[
+                                0:(guide_length + self.pam_sensing)],
+            mismatch_penalties=param_vector[
+                               (guide_length + self.pam_sensing):-3],
+            forward_rates={
+                'k_on': 10 ** param_vector[-3],
+                'k_f': 10 ** param_vector[-2],
+                'k_clv': 10 ** param_vector[-1]
+            },
+            pam_detection=self.pam_sensing
+        )
+        searcher_target_complex = searcher.probe_target(self.mismatch_array)
+        return searcher_target_complex
 
 
 class NucleaSeq(Experiment):
@@ -20,7 +61,11 @@ class NucleaSeq(Experiment):
     NucleaSeq experiment, as carried out in the Finkelstein group.
     """
 
-    def simulate_cleavage_rate(self, target_mismatches: np.array):
+    def __init__(self, mismatch_array: npt.ArrayLike,
+                 concentration: float = 1E6, pam_sensing: bool = True):
+        Experiment.__init__(self, mismatch_array, concentration, pam_sensing)
+
+    def simulate(self, param_vector):
         """
         Simulates the NucleaSeq experiment for a single guide-target
         combination. Outputs the effective cleavage rate as an
@@ -29,13 +74,16 @@ class NucleaSeq(Experiment):
         # Run parameters
         time_points = np.array([12, 60, 180, 600, 1800, 6000, 18000, 60000],
                                dtype=float)
-        searcher_concentration = 1E6  # saturating Cas9 concentrations
+
+        # guarantee saturating Cas9 concentrations
+        if self.concentration is None:
+            self.concentration = 1E6
 
         # Collecting cleavage data
-        searcher_target_complex = self.searcher.probe_target(target_mismatches)
-        cleaved_fraction = searcher_target_complex.get_cleaved_fraction(
+        st_complex = self.make_searcher_target_complex(param_vector)
+        cleaved_fraction = st_complex.get_cleaved_fraction(
             time=time_points,
-            searcher_concentration=searcher_concentration
+            searcher_concentration=self.concentration
         )
 
         # fit_data too close to 1 is stripped of to prevent log issues
@@ -60,16 +108,18 @@ class NucleaSeq(Experiment):
             def exp_func(t, k):
                 return 1 - np.exp(-k * t)
 
-            k_clv_fit, k_clv_var = optimize.curve_fit(
+            k_clv_fit, _ = optimize.curve_fit(
                 exp_func,
                 time_points,
                 cleaved_fraction,
                 bounds=(0, np.inf)
             )
 
-        return k_clv_fit[0], k_clv_var[0, 0]
+        return k_clv_fit[0]
 
 
+# TODO: everything below will need to be updated
+'''
 class Champ(Experiment):
     """
     CHAMP experiment, as carried out in the Finkelstein group.
@@ -183,3 +233,4 @@ class HitsFlip(Experiment):
         k_off_fit, k_off_var = optimize.curve_fit(linear_func, time_points,
                                                   fit_data)
         return k_off_fit[0], k_off_var[0, 0]
+'''
