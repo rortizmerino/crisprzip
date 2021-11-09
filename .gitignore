@@ -19,3 +19,4 @@
 
 # loaded Python modules:
 *.pyc
+/newmodel/playground.ipynb
