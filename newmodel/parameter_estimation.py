@@ -5,7 +5,7 @@ from joblib import Parallel, delayed
 from codetiming import Timer
 
 from experiment_simulations import NucleaSeq
-from data_preprocessing import get_sample_aggregate_data
+from optimization_logging import SimulatedAnnealingLogger
 
 
 class TrainingSet:
@@ -62,8 +62,8 @@ class TrainingSet:
         self.simulations = self.prepare_experiments()
         self.simulated_values = pd.Series(index=data.index, dtype=float)
 
-    def get_cost(self, param_vector):
-        self.run_all_simulations(param_vector)
+    def get_cost(self, param_vector, multiprocessing=True):
+        self.run_all_simulations(param_vector, multiprocessing)
         return self.msd_log_cost_function()
 
     def run_all_simulations(self, param_vector, multiprocessing=True,
@@ -200,6 +200,9 @@ class SimulatedAnnealer:
                  step_size: float,
                  cost_tolerance: float,
 
+                 # location of log file
+                 log_file: str = None,
+
                  # optional arguments
                  parameter_bounds: tuple = None,
                  cooling_rate: float = 1.,  # cooling_rate < 1
@@ -228,6 +231,7 @@ class SimulatedAnnealer:
         self.accept_no = 0
         self.avg_cost = self.cost
         self.cost_gain = 0.
+        self.init_cycles = 0
 
         # temperature parameters
         self.initial_temperature = initial_temperature
@@ -243,6 +247,10 @@ class SimulatedAnnealer:
         self.step_size = step_size
         self.acceptance_bounds = acceptance_bounds  # (min, max)
         self.adjust_factor = adjust_factor
+
+        # logger
+        if log_file is not None:
+            self.logger = SimulatedAnnealingLogger(self, log_file)
 
     def take_step(self) -> np.ndarray:
         """Returns a small step away from the given parameter vector"""
@@ -300,9 +308,10 @@ class SimulatedAnnealer:
 
         while not self.stop_condition:
             self.do_step_cycle()
+            self.logger.report_status()
 
             # Checks stop condition: maximum trial number
-            if self.trial_no > self.max_trial_no:
+            if self.trial_no >= self.max_trial_no:
                 self.stop_condition = True
                 print('Maximum number of trials reached!')
 
@@ -317,6 +326,28 @@ class SimulatedAnnealer:
                 continue
             # Equilibrated when acceptance ratio is within bounds
             else:
+                break
+
+    def find_start_temperature(self) -> None:
+        """Performs initial step cycles and updates initial temperature
+        until the acceptance ratio is within bounds."""
+
+        while True:
+            self.do_step_cycle()
+            self.logger.report_status()
+
+            acceptance_ratio = self.accept_no / self.check_cycle
+            # Too many accepted trials, decrease temperature
+            if acceptance_ratio > self.acceptance_bounds[1]:
+                self.temperature /= self.adjust_factor
+                continue
+            # Too few accepted trials, increase temperature
+            elif acceptance_ratio < self.acceptance_bounds[0]:
+                self.temperature *= self.adjust_factor
+                continue
+            # Stop initialization when acceptance ratio is within bounds
+            else:
+                self.init_cycles = int(self.trial_no / self.check_cycle)
                 break
 
     def check_stop_condition(self) -> None:
@@ -337,20 +368,28 @@ class SimulatedAnnealer:
     def run(self) -> None:
         """Main function"""
 
-        while not self.stop_condition:
-            # First, equilibrate at current temperature
-            self.equilibrate()
+        # context manager handles opening/closing of the log file
+        # and writes a header upon finishing
+        with self.logger:
+            # initial status
+            self.logger.report_status()
 
-            # Then, check whether param_vec is accepted as solution or
-            # final temperature has been reached
-            self.check_stop_condition()
+            # Initialize by tuning the starting temperature
+            self.find_start_temperature()
 
-            # Finally, update the temperature for next loop
-            self.temperature *= self.cooling_rate
+            while not self.stop_condition:
+                # First, equilibrate at current temperature
+                self.equilibrate()
+
+                # Then, check whether param_vec is accepted as solution or
+                # final temperature has been reached
+                self.check_stop_condition()
+
+                # Finally, update the temperature for next loop
+                self.temperature *= self.cooling_rate
 
 
 def main():
-
     optimization_kwargs = {
         'check_cycle': 10,  # 1000?
         'step_size': 2.,
@@ -364,74 +403,41 @@ def main():
         'adjust_factor': 1.1,
     }
 
-    aggregate_data = get_sample_aggregate_data()
-    aggregate_data.columns = ['mismatch_positions', 'value', 'error']
-    aggregate_data['experiment_name'] = 'NucleaSeq'
+    # aggregate_data = get_sample_aggregate_data()
+    # aggregate_data.columns = ['mismatch_positions', 'value', 'error']
+    # aggregate_data['experiment_name'] = 'NucleaSeq'
+    aggregate_data = pd.read_csv(
+        '../newdata/sample_aggregate_data.csv',
+        dtype={'mismatch_positions': str,
+               'value': float,
+               'error': float,
+               'experiment_name': str}
+    ).iloc[:, 1:]
     training_set = TrainingSet(aggregate_data)
 
     guide_length = 20
-    param_vector_ones = np.ones(2*guide_length + 4)
+    param_vector_ones = np.ones(2 * guide_length + 4)
+
+    trial_no = 500
 
     with Timer(name='overall calc', logger=None):
         SimulatedAnnealer(
             function=training_set.get_cost,
             initial_param_vector=param_vector_ones,
             parameter_bounds=(
-                np.array((2*guide_length + 1) * [0] + 3 * [-4]),
-                np.array((2*guide_length + 1) * [10] + 3 * [4])
+                np.array((2 * guide_length + 1) * [0] + 3 * [-4]),
+                np.array((2 * guide_length + 1) * [10] + 3 * [4])
             ),
-            max_trial_no=500,
+            log_file='SimAnnealTestReport.txt',
+            max_trial_no=trial_no,
             **optimization_kwargs
         ).run()
 
-    print('Overall time: %.2f' % Timer.timers['overall calc'])
-    print('Cost function time: %.2f' % Timer.timers['cost calc'])
-    print('Cost function fraction: %.2f' %
-          Timer.timers['cost calc']/Timer.timers['overall calc'])
-
-
-# TODO: get Monitor working
-class Monitor:
-    def __init__(self, file):
-        self.file = file
-
-    def __enter__(self):
-        self.file.open('w')
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.file.close()
-
-    def report(self):
-        pass
-
-
-def old_main(mp=True):
-    aggregate_data = get_sample_aggregate_data()
-    aggregate_data.columns = ['mismatch_positions', 'value', 'error']
-    aggregate_data['experiment_name'] = 'NucleaSeq'
-    training_set = TrainingSet(aggregate_data)
-
-    guide_length = 20
-    round_no = 25
-    time_list = [0., ] * round_no
-
-    for i in range(round_no):
-        print(f'ROUND {i}')
-        random_param_vector = np.concatenate(
-            (np.random.rand(2 * guide_length + 1) * 10,
-             np.random.rand(3) * 10 - 5),
-            axis=0
-        )
-
-        with Timer(text='Run time: {}') as t:
-            training_set.run_all_simulations(random_param_vector,
-                                             multiprocessing=mp)
-            cost = training_set.msd_log_cost_function()
-        time_list[i] = t.last
-        print(f'Cost: {cost:.3f}')
-
-    print(f'Total time: {np.mean(time_list[1:]):.2f} \u00B1 '
-          f'{np.std(time_list[1:]):.2f} sec')
+    print('Overall time: %.2f s' % Timer.timers['overall calc'])
+    print('Cost function time: %.2f s ' % Timer.timers['cost calc'], end='')
+    print('(per evaluation: %.2f s)' % (Timer.timers['cost calc'] / trial_no))
+    print('Cost function fraction: %.2f%%' %
+          (100 * Timer.timers['cost calc'] / Timer.timers['overall calc']))
 
 
 if __name__ == '__main__':
