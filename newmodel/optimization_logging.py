@@ -3,25 +3,43 @@ import traceback
 from time import time
 from datetime import datetime
 
-# FIXME: circular import
-from parameter_estimation import SimulatedAnnealer
+import sim_anneal   # this notation avoids circular import error
+# TODO: might want to put these in a shared module after all
 
 
 class SimulatedAnnealingLogger:
+    """
+    Generates txt-files containing all relevant info of an optimization run.
 
-    def __init__(self, optimizer: SimulatedAnnealer, log_file):
+    Attributes
+    ---------
+    optimizer: SimulatedAnnealer
+        the optimization process that the logger reports on
+    log_file: str
+        full path of the log file to be written
+    """
+
+    def __init__(self, optimizer: sim_anneal.SimulatedAnnealer,
+                 log_file: str):
         self.optimizer = optimizer
         self.filename = log_file
         self.temp_filename = log_file[:-4] + '_temp.txt'
 
     def __enter__(self):
+        """The __enter__ and __exit__ method allow the logger to be
+        used as a context manager (with ...)"""
         self.original_attributes = self.optimizer.__dict__.copy()
         self.start_time = time()
         self.check_filename()
+
+        # By creating a temporary file and updating that, all content
+        # can be copied to the bottom of the final log file.
         self.temp_editor = open(self.temp_filename, 'a')
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """The __enter__ and __exit__ method allow the logger to be
+        used as a context manager (with ...)"""
         self.temp_editor.close()
         self.make_logfile(exc_type, exc_val, exc_tb)
         os.remove(self.temp_filename)
@@ -44,6 +62,9 @@ class SimulatedAnnealingLogger:
             self.temp_filename = self.filename[:-4] + '_temp.txt'
 
     def report_status(self):
+        """Writes a new line in the temporary log file. This method is called
+        after each step cycle of the simulated annealing process."""
+
         current_time = time() - self.start_time
         optimizer = self.optimizer
 
@@ -67,6 +88,10 @@ class SimulatedAnnealingLogger:
         self.temp_editor.write('\n' + newline)
 
     def make_logfile(self, exc_type, exc_val, exc_tb):
+        """Writes the final log file, consisting of three elements:
+        1. results (stop status; param_vector summary; run info)
+        2. input parameters (optimizer input)
+        3. optimization log (copied from the temporary file)"""
 
         # get optimizer info
         optimizer = self.optimizer
@@ -159,7 +184,7 @@ class SimulatedAnnealingLogger:
             ]
         )
 
-        # print initial conditions
+        # optimization input
         l_pad, r_pad = 30, 8
         optimizer_input = '\n'.join(
             "{0:<{2}}{1:>{3}}".format(label, value, l_pad, r_pad)
@@ -176,7 +201,7 @@ class SimulatedAnnealingLogger:
             ]
         )
 
-        # print header for optimization log
+        # header for optimization log
         column_names = '\t'.join([
             'Cycle no'.rjust(10),
             'Time (s)'.rjust(10),
@@ -193,6 +218,7 @@ class SimulatedAnnealingLogger:
             )
         ])
 
+        # putting everything together
         with open(self.filename, 'w') as final_editor:
             final_editor.write(
                 '\n'.join([
