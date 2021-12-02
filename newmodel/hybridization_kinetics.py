@@ -6,7 +6,6 @@ import seaborn as sns
 
 
 class Searcher:
-
     """
     Characterizes the hybridization landscape of a nucleic acid guided
     searcher. Assumes a reference concentration of 1 nM.
@@ -109,109 +108,24 @@ class Searcher:
                                      self.forward_rate_dict,
                                      target_mismatches)
 
-    def plot_on_target_landscape(self, axes=None):
-        """
-        Creates a line plot of the on- or off-target landscape. If
-        target_mismatches is provided, plots both the on- and
-        off-target, otherwise just the on-target landscape.
+    def plot_on_target_landscape(self, y_lims=None, color='cornflowerblue',
+                                 axs=None):
+        axs = SearcherPlotter(self).plot_on_target_landscape(y_lims=y_lims,
+                                                             color=color,
+                                                             axs=axs)
+        return axs
 
-        Parameters
-        ----------
-        axes: matplotlib.Axes
-            (optional) axes object to which plot can be added
+    def plot_penalties(self, y_lims=None, color='firebrick', axs=None):
+        axs = SearcherPlotter(self).plot_mismatch_penalties(y_lims=y_lims,
+                                                            color=color,
+                                                            axs=axs)
+        return axs
 
-        Returns
-        -------
-        axes: matplotlib.Axes
-            axes object with landscape line plots.
-        """
-
-        # line plot definition for both landscapes
-        def plot_landscape_line(landscape, color):
-            axes.plot(
-                np.arange(landscape.size) - 1 * self.pam_detection,
-                landscape,
-                color=color,
-                linewidth=2,
-                marker="o",
-                markersize=8,
-                markeredgewidth=2,
-                markeredgecolor=color,
-                markerfacecolor="white"
-            )
-            pass
-
-        if axes is None:
-            axes = plt.subplot()
-
-        # obtaining on-target landscape, adding solution
-        # states at zero energy
-        on_target_landscape = np.concatenate(
-            (np.zeros(1), self.on_target_landscape, np.zeros(1))
-        )
-
-        plot_landscape_line(on_target_landscape, 'cornflowerblue')
-
-        # window dressing
-        axes.set_xlabel(r'Targeting progression $b$', fontsize=12)
-        axes.set_ylabel(r'Free energy ($k_BT$)', fontsize=12)
-        axes.set_xticks(
-            np.arange(on_target_landscape.size) - 1 * self.pam_detection
-        )
-        x_tick_labels = (
-                ['S'] + self.pam_detection * ['P'] + ['1'] +
-                ['' + (x % 5 == 0) * str(x) for x in
-                 range(2, self.guide_length)] +
-                [str(self.guide_length)] + ['C']
-        )
-        axes.set_xticklabels(x_tick_labels, rotation=0)
-        axes.tick_params(axis='both', labelsize=10)
-        axes.grid('on')
-        sns.set_style('ticks')
-        sns.despine(ax=axes)
-
-        return axes
-
-    def plot_penalties(self, axes=None):
-        """
-        Creates a bar plot of the mismatch penalties.
-
-        Parameters
-        ----------
-        axes: matplotlib.Axes
-            (optional) axes object to which plot can be added
-
-        Returns
-        -------
-        axes: matplotlib.Axes
-            axes object with penalties bar plot.
-        """
-
-        penalties = self.mismatch_penalties
-        if axes is None:
-            axes = plt.subplot()
-
-        # making bar plot
-        axes.bar(np.arange(self.guide_length) + 1.5,
-                 penalties,
-                 color='firebrick')
-
-        # window dressing
-        axes.set_xlabel(r'Targeting progression $b$', fontsize=12)
-        axes.set_ylabel(r'Mismatch penalties ($k_BT$)', fontsize=12)
-        axes.set_xticks(np.arange(1, self.guide_length + 1) + 0.5)
-        x_tick_labels = (
-                ['1'] +
-                ['' + (x % 5 == 0) * str(x) for x in
-                 range(2, self.guide_length)] +
-                [str(self.guide_length)]
-        )
-        axes.set_xticklabels(x_tick_labels, rotation=0)
-        axes.tick_params(axis='both', labelsize=10)
-        sns.set_style('ticks')
-        sns.despine(ax=axes)
-
-        return axes
+    def plot_forward_rates(self, y_lims=None, color='cornflowerblue', axs=None):
+        axs = SearcherPlotter(self).plot_forward_rates(y_lims=y_lims,
+                                                       color=color,
+                                                       axs=axs)
+        return axs
 
 
 class SearcherTargetComplex(Searcher):
@@ -488,72 +402,149 @@ class SearcherTargetComplex(Searcher):
         bound_fraction = 1 - prob_distr.T[0]
         return bound_fraction
 
-    def plot_off_target_landscape(self, axes=None):
-        """
-        Creates a line plot of the off-target landscape on top of the
-        on-target landscape.
+    def plot_off_target_landscape(self, y_lims=None, color='firebrick',
+                                  axs=None):
+        axs = SearcherPlotter(self).plot_off_target_landscape(
+            self.target_mismatches,
+            y_lims=y_lims, color=color, axs=axs)
+        return axs
 
-        Parameters
-        ----------
-        axes: matplotlib.Axes
-            (optional) axes object to which plot can be added
 
-        Returns
-        -------
-        axes: matplotlib.Axes
-            axes object with landscape line plots.
-        """
+class SearcherPlotter:
+    """Class that creates various plots of Searchers and
+    SearcherTargetComplex instances"""
 
-        # line plot definition for both landscapes
-        def plot_landscape_line(landscape, color):
-            axes.plot(
-                np.arange(landscape.size) - 1 * self.pam_detection,
-                landscape,
-                color=color,
-                linewidth=2,
-                marker="o",
-                markersize=8,
-                markeredgewidth=2,
-                markeredgecolor=color,
-                markerfacecolor="white"
-            )
-            pass
+    title_style = {'fontweight': 'bold'}
+    label_style = {'fontsize': 10}
+    tick_style = {'labelsize': 10}
+    scatter_style = {'marker': 'o',
+                     'edgecolors': 'face'}
+    line_style = {'linewidth': 2,
+                  'marker': '.',
+                  'markersize': 12}
 
-        if axes is None:
-            axes = plt.subplot()
+    def __init__(self, searcher: Searcher):
+        self.searcher = searcher
 
-        # obtaining on- and off-target landscapes, adding solution
-        # states at zero energy
-        on_target_landscape = np.concatenate(
-            (np.zeros(1), self.on_target_landscape, np.zeros(1))
-        )
-        off_target_landscape = np.concatenate(
-            (np.zeros(1), self.off_target_landscape, np.zeros(1))
-        )
+    def plot_landscape_line(self, x_vals, y_vals, y_lims, color,
+                            axs=None):
+        searcher = self.searcher
+        if axs is None:
+            _, axs = plt.subplots(1, 1, figsize=(4, 3))
 
-        # making landscape plots
-        plot_landscape_line(on_target_landscape, 'lightgray')
-        plot_landscape_line(off_target_landscape, 'firebrick')
+        # line plot
+        axs.plot(x_vals, y_vals, color=color, **self.line_style)
 
         # window dressing
-        axes.set_xlabel(r'Targeting progression $b$', fontsize=12)
-        axes.set_ylabel(r'Free energy ($k_BT$)', fontsize=12)
-        axes.set_xticks(
-            np.arange(on_target_landscape.size) - 1 * self.pam_detection
-        )
+        axs.set_xlabel(r'Targeting progression $b$', **self.label_style)
+        axs.set_ylabel(r'Free energy ($k_BT$)', **self.label_style)
+        axs.set_xlim(-(searcher.pam_detection + 1.2),
+                     searcher.guide_length + 2.2)
+        axs.set_xticks(np.arange(-searcher.pam_detection,
+                                 searcher.guide_length + 2))
         x_tick_labels = (
-                ['S'] + self.pam_detection * ['P'] + ['1'] +
+                ['S'] + searcher.pam_detection * ['P'] + ['1'] +
                 ['' + (x % 5 == 0) * str(x) for x in
-                 range(2, self.guide_length)] +
-                [str(self.guide_length)] + ['C']
+                 range(2, searcher.guide_length)] +
+                [str(searcher.guide_length)] + ['C']
         )
-        axes.set_xticklabels(x_tick_labels, rotation=0)
-        axes.tick_params(axis='both', labelsize=10)
-        axes.grid('on')
+        axs.set_xticklabels(x_tick_labels, rotation=0)
+        axs.tick_params(axis='both', **self.tick_style)
+        axs.set_ylim(y_lims[0] - .5, y_lims[1] + .5)
+        axs.grid('on')
         sns.set_style('ticks')
-        sns.despine(ax=axes)
+        sns.despine(ax=axs)
+        return axs
 
-        return axes
+    def plot_on_target_landscape(self, y_lims=None,
+                                 color='cornflowerblue', axs=None):
+        searcher = self.searcher
+        if y_lims is None:
+            y_lims = (min(searcher.on_target_landscape.min(), 0),
+                      searcher.on_target_landscape.max())
+
+        axs = self.plot_landscape_line(
+            np.arange(-searcher.pam_detection, searcher.guide_length + 2),
+            np.concatenate(
+                (np.zeros(1), searcher.on_target_landscape, np.zeros(1))
+            ),
+            y_lims, color, axs
+        )
+        axs.set_title('On-target landscape', **self.title_style)
+        return axs
+
+    def plot_off_target_landscape(self, mismatch_positions,
+                                  y_lims=None, color='firebrick',
+                                  axs=None):
+        searcher = self.searcher.probe_target(mismatch_positions)
+        if y_lims is None:
+            y_lims = (min(searcher.off_target_landscape.min(), 0),
+                      searcher.off_target_landscape.max())
+
+        # First plot the on-target landscape in light gray
+        axs = self.plot_on_target_landscape(y_lims, color='lightgray', axs=axs)
+        # Then add the off-target landscape
+        axs = self.plot_landscape_line(
+            np.arange(-searcher.pam_detection, searcher.guide_length + 2),
+            np.concatenate(
+                (np.zeros(1), searcher.off_target_landscape, np.zeros(1))
+            ),
+            y_lims, color, axs
+        )
+        axs.set_title('Off-target landscape', **self.title_style)
+        return axs
+
+    def plot_mismatch_penalties(self, y_lims=None,
+                                color='firebrick', axs=None):
+        searcher = self.searcher
+        if y_lims is None:
+            y_lims = (searcher.mismatch_penalties.min(),
+                      searcher.mismatch_penalties.max())
+
+        axs = self.plot_landscape_line(
+            np.arange(1, searcher.guide_length + 1),
+            searcher.mismatch_penalties,
+            y_lims, color, axs
+        )
+        axs.set_title('Mismatch penalties', **self.title_style)
+        return axs
+
+    def plot_forward_rates(self, y_lims=None, color='cornflowerblue', axs=None):
+
+        if axs is None:
+            _, axs = plt.subplots(1, 1, figsize=(3, 3))
+        searcher = self.searcher
+        forward_rates = list(searcher.forward_rate_dict.values())
+        if y_lims is None:
+            y_lims = (min(forward_rates),
+                      max(forward_rates))
+
+        axs.scatter(np.arange(3), forward_rates,
+                    c=color, **self.scatter_style)
+
+        # windows dressing
+        # x-axis
+        axs.set_xlim(-1, 3)
+        axs.set_xlabel(' ')
+        axs.set_xticks(np.arange(3))
+        x_tick_labels = ([r'${k_{on}}$',
+                          r'${k_{f}}$',
+                          r'${k_{clv}}$'])
+        axs.set_xticklabels(x_tick_labels, rotation=0)
+        axs.tick_params(axis='both', **self.tick_style)
+        # y-axis
+        axs.set_yscale('log')
+        axs.set_ylim(y_lims[0] * 10 ** -.5, y_lims[1] * 10 ** .5)
+        axs.set_ylabel(r'Rate (${s^{-1}})$', **self.label_style)
+        # title
+        axs.set_title('Forward rates', **self.title_style)
+        # background
+        sns.set_style('ticks')
+        sns.despine(ax=axs)
+        return axs
+
+    # TODO: make penalties bar plot
+    # TODO: make rate plot
 
 
 def main():
