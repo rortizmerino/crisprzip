@@ -75,7 +75,7 @@ class TrainingSet:
         if not multiprocessing:
             job_number = 1
 
-        # the 'sim' objects from the simulations Series are the
+        # Below, the 'sim' objects from the simulations Series are the
         # functions to be evaluated, all of which take in
         # param_vector as an argument.
 
