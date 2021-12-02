@@ -1,22 +1,3 @@
 # folders not to include on GitLab repository
-
-/figs_manuscript_Misha_Behrouz
-/data_experiment
-/data_model/movies
-/Ipython_notebooks
-/CFD_Scoring
-/.idea
-/data_model/**/monitor*.txt
-/data_model/**/init_model*.txt
-/data_model/error*.txt
-/data_model/print*.txt
-# not important files:
-*.DS_Store
-
-
-#Ipython checkpoints:
-.ipynb_checkpoints/
-
-# loaded Python modules:
-*.pyc
-/newmodel/playground.ipynb
+.idea
+scrap

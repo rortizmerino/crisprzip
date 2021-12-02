@@ -221,7 +221,7 @@ class LogAnalyzer:
 
 
 def main():
-    log_file = 'SimAnnealTestReport.txt'
+    log_file = '../results/test/SimAnnealTestReport.txt'
     log_analyzer = LogAnalyzer(log_file)
     log_analyzer.make_log_dashboard_video('testvideo1.mp4', 'videos')
 

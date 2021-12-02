@@ -102,9 +102,9 @@ def get_sample_aggregate_data():
     """
 
     full_complex_df = \
-        pd.read_csv('../newdata/experimental/complex.csv', index_col=0)
+        pd.read_csv('../../data/database/complex.csv', index_col=0)
     full_measurement_df = \
-        pd.read_csv('../newdata/experimental/measurement.csv', index_col=0)
+        pd.read_csv('../../data/database/measurement.csv', index_col=0)
 
     sample_dataset_id = 0
     measurement_df = full_measurement_df.loc[

@@ -121,8 +121,7 @@ def generate_sample_guide_complex_dataframe():
 
     # import data in the original data folder
     df_raw = pd.read_csv(
-        "C:\\Users\\HP\\depkengit\\CRISPR_kinetic_model\\"
-        "data_experiment\\NucleaSeq_dataset.csv"
+        "/data/prepared_experimental\\NucleaSeq_dataset.csv"
     )
 
     # This data is for wildtype SpCas9 (I presume)
@@ -201,7 +200,7 @@ def generate_sample_guide_complex_dataframe():
     off_targets_df = off_targets_df.reset_index(drop=True)
     complex_df = complex_df.append(off_targets_df, ignore_index=True)
 
-    # Also, we obtain the dataframes with the experimental results
+    # Also, we obtain the dataframes with the database results
     experiment_df = generate_full_experiment_dataframe()
     dataset_df = generate_empty_dataset_dataframe()
     measurement_df = generate_empty_measurement_dataframe()
@@ -213,7 +212,7 @@ def generate_sample_guide_complex_dataframe():
     # make a dataset entry
     dataset_df.loc[0] = [experiment_id, 'Misha\'s prepared NucleaSeq data',
                          "C:\\Users\\HP\\depkengit\\CRISPR_kinetic_model\\"
-                         "data_experiment\\NucleaSeq_dataset.csv"
+                         "prepared_experimental\\NucleaSeq_dataset.csv"
                          ]
 
     # now get the data and store them

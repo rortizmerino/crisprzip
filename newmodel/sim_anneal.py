@@ -543,7 +543,7 @@ def main():
     # aggregate_data.columns = ['mismatch_positions', 'value', 'error']
     # aggregate_data['experiment_name'] = 'NucleaSeq'
     aggregate_data = pd.read_csv(
-        '../newdata/sample_aggregate_data.csv',
+        '../data/sample_aggregate_data.csv',
         dtype={'mismatch_positions': str,
                'value': float,
                'error': float,
@@ -564,7 +564,7 @@ def main():
                 np.array((2 * guide_length + 1) * [0] + 3 * [-4]),
                 np.array((2 * guide_length + 1) * [10] + 3 * [4])
             ),
-            log_file='SimAnnealTestReport.txt',
+            log_file='../results/test/SimAnnealTestReport.txt',
             max_trial_no=trial_no,
             **optimization_kwargs
         ).run()

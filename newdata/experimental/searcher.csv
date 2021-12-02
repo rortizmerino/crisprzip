@@ -1,8 +1,0 @@
-searcher_id,type,target_direction,canonical_PAM,guide_length
-100,WT SpCas9,3'-to-5',GGN,20
-201,SpCas9-Hf1,3'-to-5',GGN,20
-202,SpCas9-Enh,3'-to-5',GGN,20
-203,SpCas9-Hypa,3'-to-5',GGN,20
-300,Cas12a,5'-to-3',TTTV,20
-600,Cascade,,,
-800,AGO2,,,
