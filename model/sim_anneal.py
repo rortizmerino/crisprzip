@@ -4,10 +4,6 @@ from time import time
 from datetime import datetime
 
 import numpy as np
-import pandas as pd
-from codetiming import Timer
-
-from training_set import TrainingSet
 
 
 class SimulatedAnnealer:
@@ -248,6 +244,7 @@ class SimulatedAnnealer:
             else:
                 break
 
+    # FIXME: stop condition does not immediately stop opt run
     def check_stop_condition(self) -> None:
         """Checks whether solution has been found or final temperature
         has been reached"""
@@ -399,7 +396,7 @@ class SimulatedAnnealingLogger:
             stop_status = 'Maximum trial number reached'
         elif optimizer.temperature < optimizer.final_temperature:
             stop_status = 'Final temperature reached'
-        elif optimizer.check_stop_condition():
+        elif optimizer.stop_condition:
             stop_status = 'Solution found'
         else:
             stop_status = 'Unknown stop status'
@@ -446,7 +443,7 @@ class SimulatedAnnealingLogger:
             "{0:<{2}}{1:>{3}}".format(label, value, l_pad, r_pad)
             for (label, value) in [
                 ('Started', start_dt.strftime("%a %d-%m-%Y %H:%S")),
-                ('Stopped', start_dt.strftime("%a %d-%m-%Y %H:%S")),
+                ('Stopped', end_dt.strftime("%a %d-%m-%Y %H:%S")),
                 ('Time elapsed',
                  ("%02dd %02dh %02dm %02ds" %
                   (elapsed_dt.days, elapsed_dt.seconds // 3600,
@@ -523,52 +520,3 @@ class SimulatedAnnealingLogger:
                 ])
             )
             final_editor.writelines(log_content)
-
-
-def main():
-    optimization_kwargs = {
-        'check_cycle': 10,  # 1000?
-        'step_size': 2.,
-        'cost_tolerance': 1E-3,
-
-        'initial_temperature': 0.1,
-        'final_temperature': 0.0,
-        'cooling_rate': 0.99,
-
-        'acceptance_bounds': (0.4, 0.6),
-        'adjust_factor': 1.1,
-    }
-
-    # aggregate_data = get_sample_aggregate_data()
-    # aggregate_data.columns = ['mismatch_positions', 'value', 'error']
-    # aggregate_data['experiment_name'] = 'NucleaSeq'
-    aggregate_data = pd.read_csv(
-        '../data/sample_aggregate_data.csv',
-        dtype={'mismatch_positions': str,
-               'value': float,
-               'error': float,
-               'experiment_name': str}
-    ).iloc[:, 1:]
-    training_set = TrainingSet(aggregate_data)
-
-    guide_length = 20
-    param_vector_ones = np.ones(2 * guide_length + 4)
-
-    trial_no = 500
-
-    with Timer(name='overall calc', logger=None):
-        SimulatedAnnealer(
-            function=training_set.get_cost,
-            initial_param_vector=param_vector_ones,
-            parameter_bounds=(
-                np.array((2 * guide_length + 1) * [0] + 3 * [-4]),
-                np.array((2 * guide_length + 1) * [10] + 3 * [4])
-            ),
-            log_file='../results/test/SimAnnealTestReport.txt',
-            max_trial_no=trial_no,
-            **optimization_kwargs
-        ).run()
-
-
-if __name__ == '__main__':
-    main()

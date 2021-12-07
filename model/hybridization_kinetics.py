@@ -109,22 +109,27 @@ class Searcher:
                                      target_mismatches)
 
     def plot_on_target_landscape(self, y_lims=None, color='cornflowerblue',
-                                 axs=None):
+                                 axs=None, **plot_kwargs):
         axs = SearcherPlotter(self).plot_on_target_landscape(y_lims=y_lims,
                                                              color=color,
-                                                             axs=axs)
+                                                             axs=axs,
+                                                             **plot_kwargs)
         return axs
 
-    def plot_penalties(self, y_lims=None, color='firebrick', axs=None):
+    def plot_penalties(self, y_lims=None, color='firebrick', axs=None,
+                       **plot_kwargs):
         axs = SearcherPlotter(self).plot_mismatch_penalties(y_lims=y_lims,
                                                             color=color,
-                                                            axs=axs)
+                                                            axs=axs,
+                                                            **plot_kwargs)
         return axs
 
-    def plot_forward_rates(self, y_lims=None, color='cornflowerblue', axs=None):
+    def plot_forward_rates(self, y_lims=None, color='cornflowerblue', axs=None,
+                           **plot_kwargs):
         axs = SearcherPlotter(self).plot_forward_rates(y_lims=y_lims,
                                                        color=color,
-                                                       axs=axs)
+                                                       axs=axs,
+                                                       **plot_kwargs)
         return axs
 
 
@@ -427,13 +432,14 @@ class SearcherPlotter:
         self.searcher = searcher
 
     def plot_landscape_line(self, x_vals, y_vals, y_lims, color,
-                            axs=None):
+                            axs=None, **plot_kwargs):
         searcher = self.searcher
         if axs is None:
             _, axs = plt.subplots(1, 1, figsize=(4, 3))
 
         # line plot
-        axs.plot(x_vals, y_vals, color=color, **self.line_style)
+        axs.plot(x_vals, y_vals, color=color, **self.line_style,
+                 **plot_kwargs)
 
         # window dressing
         axs.set_xlabel(r'Targeting progression $b$', **self.label_style)
@@ -457,7 +463,8 @@ class SearcherPlotter:
         return axs
 
     def plot_on_target_landscape(self, y_lims=None,
-                                 color='cornflowerblue', axs=None):
+                                 color='cornflowerblue', axs=None,
+                                 **plot_kwargs):
         searcher = self.searcher
         if y_lims is None:
             y_lims = (min(searcher.on_target_landscape.min(), 0),
@@ -468,34 +475,35 @@ class SearcherPlotter:
             np.concatenate(
                 (np.zeros(1), searcher.on_target_landscape, np.zeros(1))
             ),
-            y_lims, color, axs
+            y_lims, color, axs, **plot_kwargs
         )
         axs.set_title('On-target landscape', **self.title_style)
         return axs
 
     def plot_off_target_landscape(self, mismatch_positions,
                                   y_lims=None, color='firebrick',
-                                  axs=None):
+                                  axs=None, **plot_kwargs):
         searcher = self.searcher.probe_target(mismatch_positions)
         if y_lims is None:
             y_lims = (min(searcher.off_target_landscape.min(), 0),
                       searcher.off_target_landscape.max())
 
         # First plot the on-target landscape in light gray
-        axs = self.plot_on_target_landscape(y_lims, color='lightgray', axs=axs)
+        axs = self.plot_on_target_landscape(y_lims, color='lightgray', axs=axs,
+                                            **plot_kwargs)
         # Then add the off-target landscape
         axs = self.plot_landscape_line(
             np.arange(-searcher.pam_detection, searcher.guide_length + 2),
             np.concatenate(
                 (np.zeros(1), searcher.off_target_landscape, np.zeros(1))
             ),
-            y_lims, color, axs
+            y_lims, color, axs, **plot_kwargs
         )
         axs.set_title('Off-target landscape', **self.title_style)
         return axs
 
     def plot_mismatch_penalties(self, y_lims=None,
-                                color='firebrick', axs=None):
+                                color='firebrick', axs=None, **plot_kwargs):
         searcher = self.searcher
         if y_lims is None:
             y_lims = (searcher.mismatch_penalties.min(),
@@ -504,12 +512,13 @@ class SearcherPlotter:
         axs = self.plot_landscape_line(
             np.arange(1, searcher.guide_length + 1),
             searcher.mismatch_penalties,
-            y_lims, color, axs
+            y_lims, color, axs, **plot_kwargs
         )
         axs.set_title('Mismatch penalties', **self.title_style)
         return axs
 
-    def plot_forward_rates(self, y_lims=None, color='cornflowerblue', axs=None):
+    def plot_forward_rates(self, y_lims=None, color='cornflowerblue', axs=None,
+                           **plot_kwargs):
 
         if axs is None:
             _, axs = plt.subplots(1, 1, figsize=(3, 3))
@@ -520,7 +529,7 @@ class SearcherPlotter:
                       max(forward_rates))
 
         axs.scatter(np.arange(3), forward_rates,
-                    c=color, **self.scatter_style)
+                    color=color, **self.scatter_style, **plot_kwargs)
 
         # windows dressing
         # x-axis
@@ -544,29 +553,3 @@ class SearcherPlotter:
         return axs
 
     # TODO: make penalties bar plot
-    # TODO: make rate plot
-
-
-def main():
-    mm_positions = np.array(
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0])
-    p1 = Searcher(
-        on_target_landscape=np.array(
-            [4, 2, 5, 5, 2, 5, 1, 4, 2, 4, 6, 3, 4, 3, 3, 5, 6, 2, 2, 1, 3]),
-        mismatch_penalties=np.array(
-            [2, 2, 3, 3, 4, 5, 5, 4, 4, 4, 5, 4, 5, 4, 4, 2, 4, 2, 2, 3]),
-        forward_rates={'k_on': .02, 'k_f': 1, 'k_clv': .1},
-        pam_detection=True,
-    )
-    p2 = p1.probe_target(mm_positions)
-
-    p2.get_cleaved_fraction(1)
-    p2.get_cleaved_fraction(1E4)
-    p2.get_cleaved_fraction(0)
-    p2.get_cleaved_fraction(np.arange(1, 5))
-
-    pass
-
-
-if __name__ == '__main__':
-    main()
