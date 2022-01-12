@@ -2,4 +2,5 @@
 .idea
 scrap
 results/test
-data/data_import/old
+data/data_processing/old
+data/rawdata
