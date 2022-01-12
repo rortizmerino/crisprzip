@@ -1,3 +1,5 @@
 # folders not to include on GitLab repository
 .idea
 scrap
+results/test
+data/data_import/old
