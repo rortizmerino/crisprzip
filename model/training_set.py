@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.special import factorial
 from joblib import Parallel, delayed
 
-from model.experiment_simulations import NucleaSeq
+from model.experiment_simulations import NucleaSeq, Champ
 
 
 class TrainingSet:
@@ -16,18 +16,22 @@ class TrainingSet:
     data: pd.DataFrame
         Should contain at least the following columns:
         - experiment_name: str
-        - searcher_name           # for later use
-        - protospacer_seq         # for later use
-        - target_seq              # for later use
         - mismatch_positions: str
         - value: float
         - error: float
+        - searcher_name           # for later use, to read PAM
+        - protospacer_seq         # for later use, to identify mm?
+        - target_seq              # for later use, to identify mm?
+
     weigh_error: bool
         Determines whether entries should be weighed according to the
         relative measurement error
     weigh_multiplicity: bool
         Determines whether entries should be weighed according to the
         multiplicity of their mismatch array (True by default)
+    experiment_weights: dict
+        Relative weights of the various experiments in the dataset. By
+        default, all experiments are weighed equally.
 
     Methods
     -------
@@ -45,7 +49,8 @@ class TrainingSet:
     """
 
     def __init__(self, data: pd.DataFrame,
-                 weigh_error=True, weigh_multiplicity=True):
+                 weigh_error=True, weigh_multiplicity=True,
+                 experiment_weights=None):
 
         if not all([col in data.columns for col in
                     ['experiment_name',
@@ -56,7 +61,8 @@ class TrainingSet:
                              'for a training set.')
 
         self.data = data
-        self.weights = self.set_weights(weigh_error, weigh_multiplicity)
+        self.weights = self.set_weights(weigh_error, weigh_multiplicity,
+                                        experiment_weights)
         self.simulations = self.prepare_experiments()
         self.simulated_values = pd.Series(index=data.index, dtype=float)
 
@@ -96,8 +102,11 @@ class TrainingSet:
         simulations = pd.Series(index=self.data.index, dtype=object)
 
         # experiments Series contains proper Experiment objects
-        experiment_map = {'NucleaSeq': NucleaSeq}
-        experiments = self.data['experiment_name'].map(experiment_map)
+        experiment_map = {'nucleaseq': NucleaSeq,
+                          'champ': Champ}
+        experiments = (self.data['experiment_name']
+                       .str.lower()
+                       .map(experiment_map))
 
         # Check if some experiment types have not been recognized
         undefined_experiments = experiments.isna()
@@ -118,12 +127,32 @@ class TrainingSet:
             )
         return simulations
 
-    def set_weights(self, weigh_error=True, weigh_multiplicity=True):
+    def set_weights(self, weigh_error=True, weigh_multiplicity=True,
+                    experiment_weights=None):
         weights = pd.Series(index=self.data.index, data=1)
         if weigh_error:
             weights = weights * self.weigh_error()
         if weigh_multiplicity:
             weights = weights * self.weigh_multiplicity()
+
+        # Check if an experiment_weights dictionary was given, otherwise
+        # make one.
+        if experiment_weights is None:
+            experiment_keys = self.data.experiment_name.unique()
+            experiment_weights = dict(zip(experiment_keys,
+                                          len(experiment_keys) * [1, ]))
+        else:
+            experiment_keys = experiment_weights.keys()
+            if not all(self.data.experiment_name.isin(experiment_keys)):
+                raise ValueError('Experiment weight dictionary must contain '
+                                 'all the experiments of the dataset')
+
+        for exp in experiment_keys:
+            selection = (self.data.experiment_name == exp)
+            weights[selection] = (weights[selection]
+                                  / weights[selection].sum()
+                                  * experiment_weights[exp])
+
         normalized_weights = weights / weights.sum()
         return normalized_weights
 
