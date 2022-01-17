@@ -18,8 +18,6 @@ def main(argv):
     )
     out_file = argv[1]
 
-    print('Running...')
-
     optimization_kwargs = {
         'check_cycle': 10,  # 1000?
         'step_size': 2.,
@@ -35,7 +33,7 @@ def main(argv):
 
     # fitting champ and nucleaseq data
     champ_data = pd.read_csv(
-        os.path.join(root_dir, '/data/SpCas9/Champ2020/aggr_data.csv'),
+        os.path.join(root_dir, 'data/SpCas9/Champ2020/aggr_data.csv'),
         index_col=0, dtype={'mismatch_array': str}
     )
     champ_data.rename(columns={'mismatch_array': 'mismatch_positions'},
@@ -43,7 +41,7 @@ def main(argv):
     champ_data['experiment_name'] = 'CHAMP'
 
     nuseq_data = pd.read_csv(
-        os.path.join(root_dir, '/data/SpCas9/NucleaSeq2020/aggr_data.csv'),
+        os.path.join(root_dir, 'data/SpCas9/NucleaSeq2020/aggr_data.csv'),
         index_col=0, dtype={'mismatch_positions': str}
     )
 
@@ -56,7 +54,7 @@ def main(argv):
     param_vector_ones = np.ones(2 * guide_length + 4)
 
     # trial no
-    trial_no = 500
+    trial_no = 10000
 
     # run the optimization
     cost_func = lambda param_vector: training_set.get_cost(param_vector,

@@ -442,8 +442,8 @@ class SimulatedAnnealingLogger:
         run_info = '\n'.join(
             "{0:<{2}}{1:>{3}}".format(label, value, l_pad, r_pad)
             for (label, value) in [
-                ('Started', start_dt.strftime("%a %d-%m-%Y %H:%S")),
-                ('Stopped', end_dt.strftime("%a %d-%m-%Y %H:%S")),
+                ('Started', start_dt.strftime("%a %d-%m-%Y %H:%M")),
+                ('Stopped', end_dt.strftime("%a %d-%m-%Y %H:%M")),
                 ('Time elapsed',
                  ("%02dd %02dh %02dm %02ds" %
                   (elapsed_dt.days, elapsed_dt.seconds // 3600,
