@@ -3,7 +3,6 @@ import sys
 import pandas as pd
 import numpy as np
 
-sys.path.append("/home/hiddeofferhaus/depkengit/CRISPR_kinetic_model/model")
 from training_set import TrainingSet
 from sim_anneal import SimulatedAnnealer
 
