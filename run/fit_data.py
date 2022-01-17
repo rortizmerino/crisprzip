@@ -23,7 +23,7 @@ def main(argv):
         'step_size': 2.,
         'cost_tolerance': 1E-3,
 
-        'initial_temperature': 0.1,
+        'initial_temperature': 80000.0,
         'final_temperature': .0005,
         'cooling_rate': 0.99,
 
