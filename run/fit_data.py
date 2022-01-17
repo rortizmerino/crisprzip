@@ -3,8 +3,9 @@ import sys
 import pandas as pd
 import numpy as np
 
-from model.training_set import TrainingSet
-from model.sim_anneal import SimulatedAnnealer
+sys.path.append("/home/hiddeofferhaus/depkengit/CRISPR_kinetic_model/model")
+from training_set import TrainingSet
+from sim_anneal import SimulatedAnnealer
 
 
 def main(argv):
@@ -42,7 +43,7 @@ def main(argv):
     param_vector_ones = np.ones(2 * guide_length + 4)
 
     # trial no
-    trial_no = 5000
+    trial_no = 500
 
     # run the optimization
     cost_func = lambda param_vector: training_set.get_cost(param_vector,
