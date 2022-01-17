@@ -10,5 +10,5 @@
 # cd $PBS_O_WORKDIR
 project_folder="/home/hiddeofferhaus/depkengit/CRISPR_kinetic_model"
 
-# TODO: check python location on cluster
-python3.9 "${project_folder}/run/fit_data.py" "${project_folder}/results/hpc_test/01.txt"
+source activate crispr_kin_model_env
+python "${project_folder}/run/fit_data.py" "${project_folder}/results/hpc_test/01.txt"
