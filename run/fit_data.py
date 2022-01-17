@@ -1,4 +1,5 @@
 import sys
+import os
 
 import pandas as pd
 import numpy as np
@@ -8,6 +9,13 @@ from sim_anneal import SimulatedAnnealer
 
 
 def main(argv):
+    # collecting arguments
+    root_dir = os.path.abspath(
+        os.path.join(
+            os.path.dirname(os.path.abspath(argv[0])),  # parent dir (=/run)
+            os.pardir  # /.. (up a directory)
+        )
+    )
     out_file = argv[1]
 
     print('Running...')
@@ -26,13 +34,19 @@ def main(argv):
     }
 
     # fitting champ and nucleaseq data
-    champ_data = (pd.read_csv('../data/SpCas9/Champ2020/aggr_data.csv',
-                              index_col=0, dtype={'mismatch_array': str}))
+    champ_data = pd.read_csv(
+        os.path.join(root_dir, '/data/SpCas9/Champ2020/aggr_data.csv'),
+        index_col=0, dtype={'mismatch_array': str}
+    )
     champ_data.rename(columns={'mismatch_array': 'mismatch_positions'},
                       inplace=True)
     champ_data['experiment_name'] = 'CHAMP'
-    nuseq_data = (pd.read_csv('../data/SpCas9/NucleaSeq2020/aggr_data.csv',
-                              index_col=0, dtype={'mismatch_positions': str}))
+
+    nuseq_data = pd.read_csv(
+        os.path.join(root_dir, '/data/SpCas9/NucleaSeq2020/aggr_data.csv'),
+        index_col=0, dtype={'mismatch_positions': str}
+    )
+
     all_data = champ_data.append(nuseq_data)
     all_data.reset_index(drop=True, inplace=True)
     training_set = TrainingSet(all_data)
