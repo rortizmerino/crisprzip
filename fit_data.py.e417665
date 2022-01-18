@@ -1,8 +1,0 @@
-import: unable to open X server `' @ error/import.c/ImportImageCommand/344.
-import: unable to open X server `' @ error/import.c/ImportImageCommand/344.
-import: unable to open X server `' @ error/import.c/ImportImageCommand/344.
-import: unable to open X server `' @ error/import.c/ImportImageCommand/344.
-/var/opt/ud/torque-4.2.10/mom_priv/jobs/417665.hpc05.hpc.SC: line 7: from: command not found
-/var/opt/ud/torque-4.2.10/mom_priv/jobs/417665.hpc05.hpc.SC: line 8: from: command not found
-/var/opt/ud/torque-4.2.10/mom_priv/jobs/417665.hpc05.hpc.SC: line 11: syntax error near unexpected token `('
-/var/opt/ud/torque-4.2.10/mom_priv/jobs/417665.hpc05.hpc.SC: line 11: `def main(argv):'
