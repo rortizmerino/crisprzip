@@ -354,7 +354,7 @@ class SimulatedAnnealingLogger:
             # passed time
             '{:>10.1f}'.format(current_time),
             # average cost
-            '{:>10.2e}'.format(optimizer.avg_cost),
+            '{:>10.3e}'.format(optimizer.avg_cost),
             # average cost gain
             '{:+.2e}'.format(optimizer.cost_gain).rjust(10),
             # current temperature (%)
