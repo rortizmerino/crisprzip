@@ -104,7 +104,8 @@ class SimulatedAnnealer:
                  cooling_rate: float = 1.,  # cooling_rate < 1
                  check_cycle: int = 1,
                  acceptance_bounds: tuple = (0., 1.),
-                 adjust_factor: float = 1.,  # adjust_factor > 1
+                 adjust_factor: float = 1.,  # adjust_factor > 1,
+                 initialize_temperature: bool = True,
 
                  # location of log file
                  log_file: str = None):
@@ -134,6 +135,7 @@ class SimulatedAnnealer:
         self.temperature = initial_temperature
         self.final_temperature = final_temperature
         self.cooling_rate = cooling_rate
+        self.initialize_temperature = initialize_temperature
 
         # step taking parameters
         self.check_cycle = check_cycle
@@ -270,7 +272,8 @@ class SimulatedAnnealer:
             self.logger.report_status()
 
             # Initialize by tuning the starting temperature
-            self.find_start_temperature()
+            if self.initialize_temperature:
+                self.find_start_temperature()
 
             while not self.stop_condition:
                 # First, equilibrate at current temperature
