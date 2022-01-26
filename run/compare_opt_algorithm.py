@@ -116,16 +116,18 @@ def make_orig_training_set(root_dir):
         index_col=0,
         dtype={'mismatch_array': str}
     )
+    orig_nuseq_data['experiment_name'] = 'nucleaseq'
+
     orig_champ_data = pd.read_csv(
         os.path.join(root_dir, 'data/SpCas9/Champ2020/orig_data.csv'),
         index_col=0,
         dtype={'mismatch_array': str}
     )
+    orig_champ_data['experiment_name'] = 'champ'
 
     for df in [orig_nuseq_data, orig_champ_data]:
         df.rename(columns={'mismatch_array': 'mismatch_positions'},
                   inplace=True)
-        df['experiment_name'] = 'CHAMP'
 
     # making a training set
     orig_all_data = orig_champ_data.append(orig_nuseq_data)
