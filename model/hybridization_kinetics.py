@@ -237,7 +237,7 @@ class SearcherTargetComplex(Searcher):
         )
         return backward_rate_array
 
-    def __get_rate_matrix(self, searcher_concentration: float = 1.0) \
+    def get_rate_matrix(self, searcher_concentration: float = 1.0) \
             -> np.ndarray:
         """Sets up the rate matrix describing the master equation"""
 
@@ -294,7 +294,7 @@ class SearcherTargetComplex(Searcher):
         if initial_condition.size != (2 + self.on_target_landscape.size):
             raise ValueError('Initial condition should be of same length as'
                              'hybridization landscape')
-        rate_matrix = self.__get_rate_matrix(searcher_concentration)
+        rate_matrix = self.get_rate_matrix(searcher_concentration)
 
         # if rebinding is prohibited, on-rate should be zero
         if not rebinding:
@@ -308,38 +308,39 @@ class SearcherTargetComplex(Searcher):
         time = np.atleast_1d(time)
 
         # where the magic happens; evaluating the master equation
+        exp_matrix = exponentiate_fast(rate_matrix, time)
+        if exp_matrix is None:  # this is a safe alternative for e
+            exp_matrix = exponentiate_iterative(rate_matrix, time)
 
-        # 1. diagonalize M = U D U_inv
-        eigenvals, eigenvecs = linalg.eig(rate_matrix)
-        eigenvecs_inv = linalg.inv(eigenvecs)
-
-        # 2. B = exp(Dt)
-        b_matrix = np.exp(np.tensordot(eigenvals.real, time, axes=0))
-        diag_b_matrix = (b_matrix *  # 2D b_matrix put on 3D diagonal
-                         np.repeat(np.eye(b_matrix.shape[0])[:, :, np.newaxis],
-                                   b_matrix.shape[1], axis=2))
-
-        # 3. exp(Mt) = U B U_inv = U exp(Dt) U_inv
-        exp_matrix = np.tensordot(eigenvecs.dot(diag_b_matrix),
-                                  eigenvecs_inv,
-                                  axes=((1,), (0,)))
-
-        # 4. P(t) = exp(Mt) P0
+        # calculate occupancy: P(t) = exp(Mt) P0
         landscape_occupancy = exp_matrix.dot(initial_condition)
 
-        # Avoiding negative occupancy (if present, these are tiny)
+        # avoid negative occupancy (if present, these should be tiny)
         landscape_occupancy = np.maximum(landscape_occupancy,
                                          np.zeros(landscape_occupancy.shape))
-        # Normalizing P(t) to correct for rounding errors
+
+        # normalize P(t) to correct for rounding errors
         total_occupancy = np.sum(landscape_occupancy, axis=0)
-        landscape_occupancy = landscape_occupancy / total_occupancy
+
+        # recognize unsafe entries for division (zero/nan/inf)
+        unsafe = np.any(np.stack((total_occupancy == 0.,
+                                  np.isnan(total_occupancy),
+                                  np.isinf(total_occupancy)),
+                                 axis=1),
+                        axis=1)
+
+        # normalize or assign nan
+        landscape_occupancy[:, ~unsafe] = (landscape_occupancy[:, ~unsafe] /
+                                           total_occupancy[~unsafe])
+        landscape_occupancy[:, unsafe] = (landscape_occupancy[:, unsafe] *
+                                          float('nan'))
 
         return np.squeeze(landscape_occupancy.T)
 
     def get_cleavage_probability(self) -> float:
         """Returns the probability that a searcher in the PAM state (if
         present, otherwise b=1) cleaves a target before having left
-        it"""
+        it."""
 
         forward_rates = self.forward_rate_array[1:-1]
         backward_rates = self.backward_rate_array[1:-1]
@@ -420,6 +421,57 @@ class SearcherTargetComplex(Searcher):
             self.target_mismatches,
             y_lims=y_lims, color=color, axs=axs)
         return axs
+
+
+def exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
+    """
+    Fast method to calculate exp(M*t), by diagonalizing matrix M.
+    Returns None if diagnolization is problematic:
+    - singular rate matrix
+    - rate matrix with complex eigenvals
+    - overflow in the exponentiatial
+    - negative terms in exp_matrix
+    """
+
+    # 1. diagonalize M = U D U_inv
+    try:
+        eigenvals, eigenvecs = linalg.eig(matrix)
+        eigenvecs_inv = linalg.inv(eigenvecs)
+    except np.linalg.LinAlgError:
+        return None  # handles singular matrices
+    if np.any(np.iscomplex(eigenvals)):
+        return None  # skip rate matrices with complex eigenvalues
+
+    # 2. B = exp(Dt)
+    exponent_matrix = np.tensordot(eigenvals.real, time, axes=0)
+    if np.any(exponent_matrix > 700.):
+        return None  # prevents np.exp overflow
+    b_matrix = np.exp(exponent_matrix)
+    diag_b_matrix = (b_matrix *  # 2D b_matrix put on 3D diagonal
+                     np.repeat(np.eye(b_matrix.shape[0])[:, :, np.newaxis],
+                               b_matrix.shape[1], axis=2))
+
+    # 3. exp(Mt) = U B U_inv = U exp(Dt) U_inv
+    exp_matrix = np.tensordot(eigenvecs.dot(diag_b_matrix),
+                              eigenvecs_inv,
+                              axes=((1,), (0,)))
+
+    if np.any(exp_matrix < -1E-3):
+        return None  # strong negative terms
+
+    return exp_matrix
+
+
+def exponentiate_iterative(matrix: np.ndarray, time: np.ndarray):
+    """The safer method to calculate exp(M*t), looping over the values
+    in t and using the scipy function for matrix exponentiation."""
+
+    exp_matrix = np.zeros(shape=((matrix.shape[0],
+                                  time.shape[0],
+                                  matrix.shape[1])))
+    for i in range(time.size):
+        exp_matrix[:, i, :] = linalg.expm(matrix*time[i])
+    return exp_matrix
 
 
 class SearcherPlotter:

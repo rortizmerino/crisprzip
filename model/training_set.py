@@ -198,7 +198,8 @@ class TrainingSet:
 
         # First check if logarithm can safely be taken, otherwise
         # infinite penalty
-        if (np.any(self.simulated_values / self.data['value'] < 1e-300) or
+        if (np.any(self.simulated_values == 0.) or
+                np.any(self.simulated_values / self.data['value'] < 1e-300) or
                 np.any(self.simulated_values / self.data['value'] > 1e300)):
             print('Cannot handle simulated values or data values; infinite '
                   'penalty to cost function.')
@@ -206,4 +207,5 @@ class TrainingSet:
 
         result = np.sum(self.weights * np.log10(self.simulated_values /
                                                 self.data['value']) ** 2)
+        print('ok')
         return result
