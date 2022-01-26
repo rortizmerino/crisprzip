@@ -1,0 +1,4 @@
+CustomSA 100000 out/CustomSA_01.csv
+FastSA 100000 out/FastSA_01.csv
+
+
