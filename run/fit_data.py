@@ -4,8 +4,8 @@ import os
 import pandas as pd
 import numpy as np
 
-from training_set import TrainingSet
-from sim_anneal import SimulatedAnnealer
+from model.training_set import TrainingSet
+from model.sim_anneal import SimulatedAnnealer
 
 
 def main(argv):
