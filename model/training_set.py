@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.special import factorial
 from joblib import Parallel, delayed
 
-from experiment_simulations import NucleaSeq, Champ
+from model.experiment_simulations import NucleaSeq, Champ
 
 
 class TrainingSet:
