@@ -2,7 +2,7 @@
 #
 #PBS -N CRISPR_kinetic_model
 #PBS -l nodes=1:ppn=20
-#PBS -k n  # don't store stdout and stderr (we do so later)
+#PBS -k n
 #PBS -M H.S.Offerhaus@tudelft.nl
 #PBS -m ae  # mail when job is aborted (a) or terminates (e)
 
@@ -42,7 +42,7 @@ fi
 # storing stdout and stderr in run directory
 #exec 1>"${run_dir}/stdout.txt"
 #exec 2>"${run_dir}/stderr.txt"
-cmd &> "${run_dir}/stdouterr.txt"
+command &> "${run_dir}/stdouterr.txt"
 
 # activate environment, append project folder to python path
 source activate crispr_kin_model_env
