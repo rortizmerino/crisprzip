@@ -2,7 +2,8 @@
 #
 #PBS -N CRISPR_kinetic_model
 #PBS -l nodes=1:ppn=20
-#PBS -o depkengit/CRISPR_kinetic_model/.temp
+#PBS -o .temp/latest_stdout.txt
+#PBS -e .temp/latest_stderr.txt
 #PBS -M H.S.Offerhaus@tudelft.nl
 #PBS -m ae  # mail when job is aborted (a) or terminates (e)
 
@@ -40,8 +41,6 @@ if [ ! -d "$run_dir" ]; then
 fi
 
 # storing stdout and stderr in run directory
-#exec 1>"${run_dir}/stdout.txt"
-#exec 2>"${run_dir}/stderr.txt"
 exec &> "${run_dir}/stdout.txt"
 
 # activate environment, append project folder to python path
