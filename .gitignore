@@ -2,6 +2,8 @@
 .idea
 */__pycache__/*
 
+.temp
+model/__pycache__
 scrap
 results/test
 data/data_processing/old
