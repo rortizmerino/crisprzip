@@ -2,7 +2,8 @@
 #
 #PBS -N CRISPR_kinetic_model
 #PBS -l nodes=1:ppn=20
-#PBS -k n
+#PBS -j oe
+#PBS -o "${job_dir}/${run_dir}/out.txt"
 #PBS -M H.S.Offerhaus@tudelft.nl
 #PBS -m ae  # mail when job is aborted (a) or terminates (e)
 
