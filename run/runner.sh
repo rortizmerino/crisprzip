@@ -8,22 +8,8 @@
 #PBS -m ae  # mail when job is aborted (a) or terminates (e)
 
 # cd to root directory (project folder)
-root_dir="/home/hiddeofferhaus/depkengit/CRISPR_kinetic_model"
+root_dir="/home/hiddeofferhaus/CRISPR_kinetic_model"
 cd $root_dir || { echo "Failed to enter {$root_dir}"; exit 1; }
-
-# making the following file structure
-# results
-# ├── 20220122_451254
-# ├── 20220127_457332
-# └── 20220127_457335
-#     ├── args.txt
-#     ├── 001
-#     ├── 002
-#     └── 003
-#         ├── another_result.csv
-#         ├── some_result.txt
-#         ├── stderr.txt
-#         └── stdout.txt
 
 # job directory, e.g. results/20220127_457335 (27 Jan 2022, job id 457335)
 job_dir="results/$(date +"%Y%m%d")_${PBS_JOBID:0:6}"
