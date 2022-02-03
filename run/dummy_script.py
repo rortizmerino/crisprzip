@@ -1,14 +1,24 @@
 import sys
-import os
-import model
 
 
-def main(argv):
-    print("Great job!\n")
-    print(sys.path)
-    print(argv)
-    print(os.getcwd())
+def main(out_path='results/', array_id=1):
+    # do cool stuff
+    pass
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+
+    # (cluster) keyword arguments: array_id and out_path
+    kwargs = {}
+    for arg in sys.argv[1:]:
+        if '=' in arg:
+            key, val = arg.split('=')
+            if key == 'array_id':
+                kwargs[key] = int(val)
+            else:
+                kwargs[key] = val
+
+    # arguments: anything needed for this script
+    args = [arg for arg in sys.argv[1:] if not ('=' in arg)]
+
+    main(*args, **kwargs)

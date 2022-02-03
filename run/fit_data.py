@@ -44,6 +44,9 @@ def main(argv):
         os.path.join(root_dir, 'data/SpCas9/NucleaSeq2020/aggr_data.csv'),
         index_col=0, dtype={'mismatch_positions': str}
     )
+    nuseq_data.rename(columns={'mismatch_array': 'mismatch_positions'},
+                      inplace=True)
+    nuseq_data['experiment_name'] = 'NucleaSeq'
 
     all_data = champ_data.append(nuseq_data)
     all_data.reset_index(drop=True, inplace=True)
@@ -57,9 +60,6 @@ def main(argv):
     trial_no = 10000
 
     # run the optimization
-    cost_func = lambda param_vector: training_set.get_cost(param_vector,
-                                                           multiprocessing=False)
-
     SimulatedAnnealer(
         function=training_set.get_cost,
         initial_param_vector=param_vector_ones,
