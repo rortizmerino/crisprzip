@@ -201,11 +201,10 @@ class TrainingSet:
         if (np.any(self.simulated_values == 0.) or
                 np.any(self.simulated_values / self.data['value'] < 1e-300) or
                 np.any(self.simulated_values / self.data['value'] > 1e300)):
-            print('Cannot handle simulated values or data values; infinite '
-                  'penalty to cost function.')
+            # print('Cannot handle simulated values or data values; infinite '
+            #       'penalty to cost function.')
             return float('inf')
 
         result = np.sum(self.weights * np.log10(self.simulated_values /
                                                 self.data['value']) ** 2)
-        print('ok')
         return result

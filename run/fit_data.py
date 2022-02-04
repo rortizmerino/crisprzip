@@ -1,6 +1,10 @@
 import sys
 import os
 
+# on Hidde's laptop
+if os.path.exists('C:/Users/HP/depkengit/CRISPR_kinetic_model'):
+    sys.path.append('C:/Users/HP/depkengit/CRISPR_kinetic_model')
+
 import pandas as pd
 import numpy as np
 
@@ -8,23 +12,30 @@ from model.training_set import TrainingSet
 from model.sim_anneal import SimulatedAnnealer
 
 
-def main(argv):
-    # collecting arguments
+def get_root_dir(script_path):
     root_dir = os.path.abspath(
         os.path.join(
-            os.path.dirname(os.path.abspath(argv[0])),  # parent dir (=/run)
+            os.path.dirname(os.path.abspath(script_path)),  # parent dir (=/run)
             os.pardir  # /.. (up a directory)
         )
     )
-    out_file = argv[1]
+    return root_dir
 
+
+def main(script_path='./fit_data.py', out_path='results/', array_id=1):
+    # collecting arguments
+    root_dir = get_root_dir(script_path)
+    out_file = os.path.join(out_path, 'custom_simanneal_log.csv')
+
+    temps = [.1, .3, 1, 3, 10, 30, 100, 300, 1000, 3000]
+    temp = temps[array_id - 1]
     optimization_kwargs = {
         'check_cycle': 10,  # 1000?
         'step_size': 2.,
-        'cost_tolerance': 1E-3,
+        'cost_tolerance': 1,
 
-        'initial_temperature': 80000.0,
-        'final_temperature': .0005,
+        'initial_temperature': temp,
+        'final_temperature': temp/100,
         'cooling_rate': 0.99,
 
         'acceptance_bounds': (0.4, 0.6),
@@ -33,7 +44,7 @@ def main(argv):
 
     # fitting champ and nucleaseq data
     champ_data = pd.read_csv(
-        os.path.join(root_dir, 'data/SpCas9/Champ2020/aggr_data.csv'),
+        os.path.join(root_dir, 'data/SpCas9/Champ2020/orig_data.csv'),
         index_col=0, dtype={'mismatch_array': str}
     )
     champ_data.rename(columns={'mismatch_array': 'mismatch_positions'},
@@ -41,8 +52,8 @@ def main(argv):
     champ_data['experiment_name'] = 'CHAMP'
 
     nuseq_data = pd.read_csv(
-        os.path.join(root_dir, 'data/SpCas9/NucleaSeq2020/aggr_data.csv'),
-        index_col=0, dtype={'mismatch_positions': str}
+        os.path.join(root_dir, 'data/SpCas9/NucleaSeq2020/orig_data.csv'),
+        index_col=0, dtype={'mismatch_array': str}
     )
     nuseq_data.rename(columns={'mismatch_array': 'mismatch_positions'},
                       inplace=True)
@@ -57,15 +68,15 @@ def main(argv):
     param_vector_ones = np.ones(2 * guide_length + 4)
 
     # trial no
-    trial_no = 10000
+    trial_no = 1500
 
     # run the optimization
     SimulatedAnnealer(
         function=training_set.get_cost,
         initial_param_vector=param_vector_ones,
         parameter_bounds=(
-            np.array((2 * guide_length + 1) * [0] + 3 * [-4]),
-            np.array((2 * guide_length + 1) * [10] + 3 * [4])
+            np.array((guide_length+1) * [-10] + guide_length * [0] + 3 * [-6]),
+            np.array((2 * guide_length + 1) * [20] + 3 * [6])
         ),
         log_file=out_file,
         max_trial_no=trial_no,
@@ -74,4 +85,18 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+
+    # (cluster) keyword arguments: script_path, array_id and out_path
+    kwargs = {'script_path': sys.argv[0]}
+    for arg in sys.argv[1:]:
+        if '=' in arg:
+            key, val = arg.split('=')
+            if key == 'array_id':
+                kwargs[key] = int(val)
+            else:
+                kwargs[key] = val
+
+    # arguments: anything needed for this script
+    args = [arg for arg in sys.argv[1:] if not ('=' in arg)]
+
+    main(*args, **kwargs)
