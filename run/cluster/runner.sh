@@ -1,10 +1,11 @@
 #!/bin/bash
 #
-#PBS -N CRISPR_kinetic_model
-#PBS -l nodes=1:ppn=1
 #PBS -o .temp/latest.o
 #PBS -e .temp/latest.e
 #PBS -m ae  # mail when job is aborted (a) or terminates (e)
+
+# qsub arguments like -t (array), -l (nodes/ppn), -N (name) should be given as
+# (double-quoted, space-separated) args to the setup_queue script
 
 # cd to root directory (project folder)
 # PBS_O_WORKDIR points to where this script was called (which is the root dir)
@@ -20,7 +21,7 @@ fi
 # store input parameters (-F) in job directory
 echo "$@" > "${job_dir}/args.txt"
 
-# run id, e.g. results/20220127_457335/003 (3rd run in job array)
+# run dir, e.g. results/20220127_457335/003 (3rd run in job array)
 array_id=$((PBS_ARRAYID>1 ? PBS_ARRAYID : 1))  # run id at least 1
 run_dir="${job_dir}/$(printf "%03d" "$array_id")"
 if [ ! -d "$run_dir" ]; then
@@ -36,5 +37,5 @@ export PYTHONPATH=${PYTHONPATH}:"${root_dir}"
 
 # all arguments ($@) after flag -F passed to python
 # array_id and out_path added as kwargs (dealt with in python script)
-py_args=("${@:1}" "array_id=$array_id" "out_path=$run_dir")
+py_args=("${@:1}" "array_id=${array_id}" "out_path=${root_dir}/${run_dir}")
 python "${py_args[@]}"
