@@ -128,6 +128,7 @@ class SimulatedAnnealer:
         self.accept_no = 0
         self.avg_cost = self.cost
         self.cost_gain = 0.
+        self.running_cost = np.array([])
         self.init_cycles = 0
 
         # temperature parameters
@@ -198,6 +199,12 @@ class SimulatedAnnealer:
         self.cost_gain = avg_cycle_cost - self.avg_cost
         self.avg_cost = avg_cycle_cost
 
+        # update running array of cost
+        if len(self.running_cost) < 100:
+            self.running_cost = np.append(self.running_cost, self.cost)
+        else:
+            self.running_cost = np.append(self.running_cost[1:], self.cost)
+
     def find_start_temperature(self) -> None:
         """Performs initial step cycles and updates initial temperature
         until the acceptance ratio is within bounds."""
@@ -246,15 +253,17 @@ class SimulatedAnnealer:
             else:
                 break
 
-    # FIXME: stop condition does not immediately stop opt run
     def check_stop_condition(self) -> None:
         """Checks whether solution has been found or final temperature
         has been reached"""
 
-        # Second condition (temperature < 1% of initial temperature)
-        # guarantees that optimization will not be stopped too early
-        if (abs(self.cost_gain) < self.cost_tolerance and
-                self.temperature < 0.01 * self.initial_temperature):
+        # New convergence condition: std in 100 most recent cycle costs
+        #  must drop below tolerance
+        # Old stop condition: average cost of cycle (including rejected
+        #  trials) must drop below tolerance and temp < 1% init_temp
+
+        if (self.running_cost.size == 100 and
+                self.running_cost.std() < self.cost_tolerance):
             self.stop_condition = True
             print('Solution found!')
 
@@ -348,15 +357,21 @@ class SimulatedAnnealingLogger:
         current_time = time() - self.start_time
         optimizer = self.optimizer
 
+        if optimizer.running_cost.size < 2:
+            cost_gain = 0
+        else:
+            cost_gain = (optimizer.running_cost[-1] -
+                         optimizer.running_cost[-2])
+
         newline = '\t'.join([
             # cycle number
             '{:>10.0f}'.format(optimizer.trial_no / optimizer.check_cycle),
             # passed time
             '{:>10.1f}'.format(current_time),
-            # average cost
-            '{:>10.3e}'.format(optimizer.avg_cost),
-            # average cost gain
-            '{:+.2e}'.format(optimizer.cost_gain).rjust(10),
+            # cost (absolute, not cycle average)
+            '{:>10.3e}'.format(optimizer.cost),  # optimizer.avg_cost
+            # cost gain (absolute, not cycle average)
+            '{:+.2e}'.format(cost_gain).rjust(10),
             # current temperature (%)
             '{:>8.3f}'.format(100 * optimizer.temperature /
                               optimizer.initial_temperature),
@@ -486,7 +501,7 @@ class SimulatedAnnealingLogger:
         column_names = '\t'.join([
             'Cycle no'.rjust(10),
             'Time (s)'.rjust(10),
-            'Avg cost'.rjust(10),
+            'Cost'.rjust(10),
             'Cost gain'.rjust(10),
             'Temp (%)'.rjust(8),
             '\t'.join(

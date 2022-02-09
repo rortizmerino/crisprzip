@@ -1,7 +1,10 @@
 # folders not to include on GitLab repository
 .idea
+.run
 */__pycache__/*
 
+.temp
+model/__pycache__
 scrap
 results/test
 data/data_processing/old
