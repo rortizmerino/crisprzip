@@ -126,8 +126,8 @@ class SimulatedAnnealer:
         self.stop_condition = False
         self.trial_no = 0
         self.accept_no = 0
-        self.avg_cost = self.cost
-        self.cost_gain = 0.
+        self.avg_cost = self.cost  # these fields have become redundant
+        self.cost_gain = 0.        # these fields have become redundant
         self.running_cost = np.array([])
         self.init_cycles = 0
 
@@ -192,8 +192,8 @@ class SimulatedAnnealer:
                 self.cost = trial_cost
                 self.accept_no += 1
 
-            # Calculates the average cost of this check cycle. Used
-            # to check the stop condition
+            # Calculates the average cost of this check cycle. Previously
+            # used to check the stop condition
             avg_cycle_cost += self.cost / self.check_cycle
 
         self.cost_gain = avg_cycle_cost - self.avg_cost

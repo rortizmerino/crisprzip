@@ -1,33 +1,27 @@
 import sys
 import os
-from time import process_time
 
+# on Hidde's laptop
+if os.path.exists('C:/Users/HP/depkengit/CRISPR_kinetic_model'):
+    sys.path.append('C:/Users/HP/depkengit/CRISPR_kinetic_model')
+
+from time import process_time
 import pandas as pd
 import numpy as np
 import scipy.optimize
-
-hp_root_dir = 'C:\\Users\\HP\\depkengit\\CRISPR_kinetic_model'
-if os.path.exists(hp_root_dir):
-    sys.path.append(hp_root_dir)
-    sys.path.append(os.path.join(hp_root_dir, 'model'))
 
 from model.training_set import TrainingSet
 from model.sim_anneal import SimulatedAnnealer
 
 
-def main(argv):
-    # find root dir
-    root_dir = os.path.abspath(
-        os.path.join(
-            os.path.dirname(os.path.abspath(argv[0])),  # parent dir (=/run)
-            os.pardir  # /.. (up a directory)
-        )
-    )
+def main(algorithm: str, max_evals: int,
+         script_path='./compare_opt_algorithms.py', out_path='results/',
+         array_id=1):
 
-    # Collecting arguments
-    algorithm = argv[1]
-    max_evals = int(argv[2])
-    out_file = argv[3]
+    # collecting arguments
+    root_dir = get_root_dir(script_path)
+    out_file = os.path.join(out_path, 'tracking_opt_algorithms.csv')
+    max_evals = int(max_evals)
 
     # initial vector and bounds
     initial_param_vector = np.ones(shape=(44,))
@@ -43,6 +37,7 @@ def main(argv):
             as analyzer:
 
         # Pick and run algorithm
+        # No gradients
         if algorithm == 'CustomSA':
             run_custom_sa(analyzer, max_evals)
             out = 'done.'
@@ -56,6 +51,31 @@ def main(argv):
                 no_local_search=True,
                 x0=initial_param_vector
             )
+        elif algorithm == 'GeneralizedSA':
+            out = scipy.optimize.dual_annealing(
+                func=analyzer.evaluate_and_track,
+                bounds=param_bounds,
+                maxfun=max_evals,
+                no_local_search=True,
+                x0=initial_param_vector
+            )
+        elif algorithm == 'DifferentialEvolutionNoPolish':
+            out = scipy.optimize.differential_evolution(
+                func=analyzer.evaluate_and_track,
+                bounds=param_bounds,
+                strategy='best1bin',
+                maxiter=int(max_evals / (15 * 44) - 1),
+                popsize=15,
+                tol=1E-5,
+                mutation=(.5, 1),
+                recombination=.7,
+                disp=True,
+                polish=False,
+                init='latinhypercube',
+                workers=1
+            )
+
+        # Gradients
         elif algorithm == 'BasinHopping':  # Not really working yet
             out = scipy.optimize.basinhopping(
                 func=analyzer.evaluate_and_track,
@@ -87,25 +107,20 @@ def main(argv):
                 init='latinhypercube',
                 workers=1
             )
-        elif algorithm == 'DifferentialEvolutionNoPolish':
-            out = scipy.optimize.differential_evolution(
-                func=analyzer.evaluate_and_track,
-                bounds=param_bounds,
-                strategy='best1bin',
-                maxiter=int(max_evals / (15 * 44) - 1),
-                popsize=15,
-                tol=1E-5,
-                mutation=(.5, 1),
-                recombination=.7,
-                disp=True,
-                polish=False,
-                init='latinhypercube',
-                workers=1
-            )
         else:
             raise ValueError('Unknown optimization method')
 
         print(out)
+
+
+def get_root_dir(script_path):
+    root_dir = os.path.abspath(
+        os.path.join(
+            os.path.dirname(os.path.abspath(script_path)),  # parent dir (=/run)
+            os.pardir  # /.. (up a directory)
+        )
+    )
+    return root_dir
 
 
 def make_orig_training_set(root_dir):
@@ -191,6 +206,14 @@ class AlgorithmAnalyzer:
         # update arrays
         self.eval_time[self.head] = process_time() - self.start_time
         self.eval_vals[self.head] = result
+
+        # export if 5 minutes have passed
+        period = 5 * 60
+        if ((self.eval_time[self.head] // period) >
+                (self.eval_time[self.head-1] // period)):
+            self.export(self.out_path)
+
+        # move head
         self.head += 1
 
         return result
@@ -236,4 +259,18 @@ def run_custom_sa(analyzer, max_evals):
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+
+    # (cluster) keyword arguments: script_path, array_id and out_path
+    kwargs = {'script_path': sys.argv[0]}
+    for arg in sys.argv[1:]:
+        if '=' in arg:
+            key, val = arg.split('=')
+            if key == 'array_id':
+                kwargs[key] = int(val)
+            else:
+                kwargs[key] = val
+
+    # arguments: anything needed for this script
+    args = [arg for arg in sys.argv[1:] if not ('=' in arg)]
+
+    main(*args, **kwargs)

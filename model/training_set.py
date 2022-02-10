@@ -207,5 +207,5 @@ class TrainingSet:
 
         result = np.sum(self.weights * np.log10(self.simulated_values /
                                                 self.data['value']) ** 2)
-        print('ok')
+        # print('ok')
         return result
