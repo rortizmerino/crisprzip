@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 
 from model.training_set import TrainingSet
-from model.sim_anneal import SimulatedAnnealer
+from model.old.sim_anneal import SimulatedAnnealer
 
 
 def get_root_dir(script_path):

@@ -1,6 +1,5 @@
-import model.analysis
+import model.fit_analysis
 import model.experiment_simulations
 import model.fit_optimizer
 import model.hybridization_kinetics
-import model.sim_anneal
 import model.training_set

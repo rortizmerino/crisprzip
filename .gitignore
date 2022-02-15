@@ -6,6 +6,6 @@
 .temp
 model/__pycache__
 scrap
-results/test
+results
 data/data_processing/old
 data/rawdata
