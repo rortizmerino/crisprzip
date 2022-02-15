@@ -7,7 +7,6 @@ if os.path.exists('C:/Users/HP/depkengit/CRISPR_kinetic_model'):
 
 import pandas as pd
 import numpy as np
-import json
 
 from model.training_set import TrainingSet
 from model.sim_anneal import SimulatedAnnealer
@@ -32,38 +31,23 @@ def main(script_path='./fit_data_custom_sa.py', out_path='results/', array_id=1)
     # FIT SETTINGS
 
     # trial no
-    trial_no = 15000
+    trial_no = 25000
+
+    # initial temp
+    temp = 10
 
     optimization_kwargs = {
         'check_cycle': 10,  # 1000?
-        'step_size': .02,
-        'cost_tolerance': .02,
+        'step_size': 2.,
+        'cost_tolerance': .1,
 
-        'initial_temperature': 1E-5,
-        'final_temperature': 1E-7,
+        'initial_temperature': temp,
+        'final_temperature': temp/1000,
         'cooling_rate': 0.99,
 
         'acceptance_bounds': (0.4, 0.6),
         'adjust_factor': 1.1,
     }
-
-    # ESLAMI SOLUTION
-    with open('run/eslami_values.json', 'r') as reader:
-        eslami_dict = json.load(reader)
-    eslami_ot_landscape = np.cumsum(eslami_dict['ot_landscape_diff'])
-    eslami_mm_penalties = np.array(eslami_dict['mm_penalties'])
-    eslami_rates = eslami_dict['forward_rates']
-
-    # to param vector
-    eslami_param_vec = np.concatenate((
-        eslami_ot_landscape,
-        eslami_mm_penalties,
-        np.log10(
-            np.array([eslami_rates['k_on'],
-                      eslami_rates['k_f'],
-                      eslami_rates['k_clv']])
-        ),
-    ))
 
     # EXECUTES FIT
 
@@ -88,17 +72,20 @@ def main(script_path='./fit_data_custom_sa.py', out_path='results/', array_id=1)
     all_data.reset_index(drop=True, inplace=True)
     training_set = TrainingSet(all_data)
 
+    # initial param vector
+    guide_length = 20
+    param_vector_ones = np.ones(2 * guide_length + 4)
+
     # run the optimization
     SimulatedAnnealer(
         function=training_set.get_cost,
-        initial_param_vector=eslami_param_vec,
+        initial_param_vector=param_vector_ones,
         parameter_bounds=(
-            np.array((20+1) * [-10] + 20 * [0] + 3 * [-6]),
-            np.array((2 * 20 + 1) * [20] + 3 * [6])
+            np.array((guide_length+1) * [-10] + guide_length * [0] + 3 * [-6]),
+            np.array((2 * guide_length + 1) * [20] + 3 * [6])
         ),
         log_file=out_file,
         max_trial_no=trial_no,
-        initialize_temperature=False,
         **optimization_kwargs
     ).run()
 

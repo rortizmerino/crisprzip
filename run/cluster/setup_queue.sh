@@ -11,7 +11,7 @@ ssh "$remote" "if [ ! -d ${remote_root_dir}/.temp ]; then mkdir -p ${remote_root
 
 # Synchronizing data, model, run directories
 echo
-echo "Synchronizing data, model, run directories... "
+printf "Synchronizing data, model, run directories... "
 
 # data (w/o data_processing, prepared_experimental, rawdata)
 rsync -r --exclude "data_processing" --exclude "prepared_experimental" \
@@ -27,7 +27,7 @@ rsync -r --delete \
  "${local_root_dir}/run" "${remote}:${remote_root_dir}"
 
 # apply dos2unix on all scripts in run/
-ssh "$remote" "cd ${remote_root_dir}/run/; find . -type f -print0 | xargs -0 dos2unix"
+ssh "$remote" "cd ${remote_root_dir}/run/; find . -type f -print0 | xargs -0 dos2unix -q"
 
 printf "done!\n"
 

@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 
 from model.training_set import TrainingSet
-from model.sim_anneal import SimulatedAnnealer
+from model.fit_optimizer import track_dual_annealing
 
 
 def get_root_dir(script_path):
@@ -22,36 +22,28 @@ def get_root_dir(script_path):
     return root_dir
 
 
-def main(script_path='./fit_data.py', out_path='results/', array_id=1):
+def main(local_search, script_path='./fit_data_da.py', out_path='results/',
+         array_id=1):
+
+    # FIT SETTINGS
+    dual_annealing_kwargs = {
+        'no_local_search': not bool(local_search),
+        'maxiter': 2500,
+        'maxfun': 250000,
+    }
+
+    # initial vector and bounds
+    initial_param_vector = np.ones(shape=(44,))
+    param_lower_bounds = np.array(21 * [-10] + 20 * [0] + 3 * [-6])
+    param_upper_bounds = np.array(41 * [20] + 3 * [6])
+    param_bounds = np.stack([param_lower_bounds,
+                             param_upper_bounds], axis=1)
 
     # collecting arguments
     root_dir = get_root_dir(script_path)
-    out_file = os.path.join(out_path, 'custom_simanneal_log.csv')
+    out_dir = os.path.abspath(out_path)
 
-    # FIT SETTINGS
-
-    # trial no
-    trial_no = 25000
-
-    # initial temp
-    temp = 10
-
-    optimization_kwargs = {
-        'check_cycle': 10,  # 1000?
-        'step_size': 2.,
-        'cost_tolerance': .1,
-
-        'initial_temperature': temp,
-        'final_temperature': temp/1000,
-        'cooling_rate': 0.99,
-
-        'acceptance_bounds': (0.4, 0.6),
-        'adjust_factor': 1.1,
-    }
-
-    # EXECUTES FIT
-
-    # fitting champ and nucleaseq data (ORIGINAL DATASET)
+    # preparing champ and nucleaseq data (ORIGINAL DATASET)
     champ_data = pd.read_csv(
         os.path.join(root_dir, 'data/SpCas9/Champ2020/orig_data.csv'),
         index_col=0, dtype={'mismatch_array': str}
@@ -72,22 +64,14 @@ def main(script_path='./fit_data.py', out_path='results/', array_id=1):
     all_data.reset_index(drop=True, inplace=True)
     training_set = TrainingSet(all_data)
 
-    # initial param vector
-    guide_length = 20
-    param_vector_ones = np.ones(2 * guide_length + 4)
-
     # run the optimization
-    SimulatedAnnealer(
-        function=training_set.get_cost,
-        initial_param_vector=param_vector_ones,
-        parameter_bounds=(
-            np.array((guide_length+1) * [-10] + guide_length * [0] + 3 * [-6]),
-            np.array((2 * guide_length + 1) * [20] + 3 * [6])
-        ),
-        log_file=out_file,
-        max_trial_no=trial_no,
-        **optimization_kwargs
-    ).run()
+    _ = track_dual_annealing(
+        func=training_set.get_cost,
+        x0=initial_param_vector,
+        bounds=param_bounds,
+        out_path=out_dir,
+        **dual_annealing_kwargs
+    )
 
 
 if __name__ == "__main__":
