@@ -6,6 +6,14 @@ from joblib import Parallel, delayed
 from model.experiment_simulations import NucleaSeq, Champ
 
 
+def read_dataset(file):
+    """This function helps to properly import the data files. It handles
+    the index column and makes sure that the mismatch_array is
+    recognized as a string, not an integer."""
+    dataset = pd.read_csv(file, index_col=0, dtype={'mismatch_array': str})
+    return dataset
+
+
 class TrainingSet:
     """
     A collection of measurements on which the Cas model will be
@@ -14,29 +22,38 @@ class TrainingSet:
     Attributes
     ----------
     data: pd.DataFrame
-        Should contain at least the following columns:
-        - experiment_name: str
-        - mismatch_positions: str
-        - value: float
-        - error: float
-        - searcher_name           # for later use, to read PAM
-        - protospacer_seq         # for later use, to identify mm?
-        - target_seq              # for later use, to identify mm?
-
-    weigh_error: bool
-        Determines whether entries should be weighed according to the
-        relative measurement error
-    weigh_multiplicity: bool
-        Determines whether entries should be weighed according to the
-        multiplicity of their mismatch array (True by default)
-    experiment_weights: dict
-        Relative weights of the various experiments in the dataset. By
-        default, all experiments are weighed equally.
+        A dataframe containing all the measurements that together make
+        up this training set. Columns are:
+        - mismatch_array
+        - mismatch_number
+        - value
+        - error
+        - experiment_name
+        - weight
+    simulated_values: pd.Series
+        Simulated values of the experiments described in the data
+        attribute. Gets updated each time that the method
+        run_all_simulations() is called.
+    simulations: pd.Series
+        A Series object that references to the proper functions to call
+        in order to simulate the experiments. The philosphy behind
+        having all these functions put together in a Series is that
+        it might save time by not having to set up the functions over
+        and over again.
 
     Methods
     -------
+    get_cost()
+        Calculates the log cost of the training set. Allows for
+        multiprocessing. This function should be called during
+        optimization.
+    run_all_simulations()
+        Simulates all the experiments that are specified in the dataset.
+        Allows for multiprocessing.
     prepare_experiments()
         Determines simulation functions on the basis of data
+    get_weights()
+        Calculates the proper weights for each dataset
     weigh_multiplicity()
         Calculates weight due to multiplicity of the mismatch array
     weigh_error()
@@ -48,23 +65,83 @@ class TrainingSet:
         data
     """
 
-    def __init__(self, data: pd.DataFrame,
-                 weigh_error=True, weigh_multiplicity=True,
-                 experiment_weights=None):
+    experiment_map = {'nucleaseq': NucleaSeq,
+                      'champ': Champ}
 
-        if not all([col in data.columns for col in
-                    ['experiment_name',
-                     'mismatch_positions',
-                     'value',
-                     'error']]):
-            raise ValueError('Dataframe does not contain all columns required '
-                             'for a training set.')
+    def __init__(self, datasets: list, experiment_names: list,
+                 experiment_weights=None,
+                 weigh_error=True, weigh_multiplicity=True):
+        """
+        Constructor method
 
-        self.data = data
-        self.weights = self.set_weights(weigh_error, weigh_multiplicity,
-                                        experiment_weights)
+        Parameters
+        ----------
+        datasets: list [pd.DataFrame]
+            All the datasets to train the model on. These can best be
+            imported with the read_dataset function of this module.
+            Datasets must contain at least the following columns:
+            - mismatch_array: a string of zeros and ones describing the
+                              mismatch positions
+            - value: the experiment outcome
+            - error: the (absolute) error in measurement
+        experiment_names: list [str]
+            The names of the experiments. The length must agree with the
+            length of the datasets list. Have a look at the class variable
+            experiment_map to see which experiment names are associated to
+            a simulation.
+        experiment_weights: list [bool]
+            The weights of the experiments. The length must agree with the
+            length of the datasets list. Default is a list of ones,
+            indicating that each dataset contributes equally to the cost
+            function.
+        weigh_error: bool
+            Determines whether entries should be weighed according to the
+            relative measurement error (True by default)
+        weigh_multiplicity: bool
+            Determines whether entries should be weighed according to the
+            multiplicity of their mismatch array (True by default)
+        """
+
+        # check if dimensions are ok
+        dataset_no = len(datasets)
+        if len(experiment_names) != dataset_no:
+            raise ValueError('Length of data and experiment_names lists do'
+                             'not agree')
+
+        # check if experiment names are familiar
+        if not all([exp.lower() in self.experiment_map.keys()
+                    for exp in experiment_names]):
+            raise ValueError('Not all experiment names are known')
+
+        # create experiment_weights if not provided. Default is equal
+        # weights for all datasets (corrected for size)
+        if experiment_weights is None:
+            experiment_weights = [1 / df.shape[0] for df in datasets]
+
+        # create data field, combining all datasets
+        self.data = pd.DataFrame()
+        for i in range(dataset_no):
+            dataframe = datasets[i]
+
+            # check columns
+            if not all([col in dataframe.columns for col in
+                        ['mismatch_array', 'value', 'error']]):
+                raise ValueError('Dataframe does not contain all columns '
+                                 'required for a training set.')
+            # add experiment name, find weights
+            dataframe['experiment_name'] = experiment_names[i]
+            dataframe['weight'] = (experiment_weights[i] *
+                                   self.get_weights(dataframe, weigh_error,
+                                                    weigh_multiplicity))
+
+            self.data = self.data.append(dataframe)
+        self.data.reset_index(drop=True, inplace=True)
+
+        # normalize weights
+        self.data['weight'] = self.data['weight'] / self.data['weight'].sum()
+
         self.simulations = self.prepare_experiments()
-        self.simulated_values = pd.Series(index=data.index, dtype=float)
+        self.simulated_values = pd.Series(index=self.data.index, dtype=float)
 
     def get_cost(self, param_vector, multiprocessing=True):
         """Returns the log cost of a particular param_vector. This
@@ -84,7 +161,6 @@ class TrainingSet:
         # Below, the 'sim' objects from the simulations Series are the
         # functions to be evaluated, all of which take in
         # param_vector as an argument.
-
         simulated_values = (
             Parallel(n_jobs=job_number)
             (delayed(sim)(param_vector) for sim in self.simulations)
@@ -102,11 +178,9 @@ class TrainingSet:
         simulations = pd.Series(index=self.data.index, dtype=object)
 
         # experiments Series contains proper Experiment objects
-        experiment_map = {'nucleaseq': NucleaSeq,
-                          'champ': Champ}
         experiments = (self.data['experiment_name']
                        .str.lower()
-                       .map(experiment_map))
+                       .map(self.experiment_map))
 
         # Check if some experiment types have not been recognized
         undefined_experiments = experiments.isna()
@@ -123,54 +197,38 @@ class TrainingSet:
         # setting up simulation functions for well-defined experiments
         for i in simulations[~undefined_experiments].index:
             simulations[i] = (
-                experiments[i](self.data.loc[i, 'mismatch_positions']).simulate
+                experiments[i](self.data.loc[i, 'mismatch_array']).simulate
             )
         return simulations
 
-    def set_weights(self, weigh_error=True, weigh_multiplicity=True,
-                    experiment_weights=None):
-        weights = pd.Series(index=self.data.index, data=1)
+    def get_weights(self, dataset: pd.DataFrame, weigh_error=True,
+                    weigh_multiplicity=True) -> pd.DataFrame:
+        """Calculates weight on the basis of error and multiplicity"""
+        weights = pd.Series(data=1, index=dataset.index)
         if weigh_error:
-            weights = weights * self.weigh_error()
+            weights = weights * self.weigh_error(dataset)
         if weigh_multiplicity:
-            weights = weights * self.weigh_multiplicity()
-
-        # Check if an experiment_weights dictionary was given, otherwise
-        # make one.
-        if experiment_weights is None:
-            experiment_keys = self.data.experiment_name.unique()
-            experiment_weights = dict(zip(experiment_keys,
-                                          len(experiment_keys) * [1, ]))
-        else:
-            experiment_keys = experiment_weights.keys()
-            if not all(self.data.experiment_name.isin(experiment_keys)):
-                raise ValueError('Experiment weight dictionary must contain '
-                                 'all the experiments of the dataset')
-
-        for exp in experiment_keys:
-            selection = (self.data.experiment_name == exp)
-            weights[selection] = (weights[selection]
-                                  / weights[selection].sum()
-                                  * experiment_weights[exp])
-
+            weights = weights * self.weigh_multiplicity(dataset)
         normalized_weights = weights / weights.sum()
         return normalized_weights
 
-    def weigh_error(self) -> pd.Series:
+    @staticmethod
+    def weigh_error(dataset: pd.DataFrame) -> pd.Series:
         """Calculates weights for data based on the multiplicity of the
         mismatch array"""
-        relative_error = self.data['error'] / self.data['value']
+        relative_error = dataset['error'] / dataset['value']
 
         weights = pd.Series(
-            index=self.data.index,
+            index=dataset.index,
             data=(1 / relative_error) ** 2
         )
         return weights
 
-    def weigh_multiplicity(self) -> pd.Series:
+    @staticmethod
+    def weigh_multiplicity(dataset: pd.DataFrame) -> pd.Series:
         """Calculates weights for data based on the multiplicity of the
         mismatch array"""
-        mismatch_array = self.data['mismatch_positions']
+        mismatch_array = dataset['mismatch_array']
         array_length = mismatch_array.str.len().to_numpy()
         mismatch_number = mismatch_array.str.replace('0',
                                                      '').str.len().to_numpy()
@@ -180,7 +238,7 @@ class TrainingSet:
                         1 / factorial(mismatch_number)).astype(int)
 
         weights = pd.Series(
-            index=self.data.index,
+            index=dataset.index,
             data=(1 / multiplicity)
         )
         return weights
@@ -188,8 +246,8 @@ class TrainingSet:
     def msd_lin_cost_function(self):
         """Calculates the cost as a weighted sum over MSD between model and
         data"""
-        result = np.sum(self.weights * (self.simulated_values -
-                                        self.data['value']) ** 2)
+        result = np.sum(self.data['weight'] *
+                        (self.simulated_values - self.data['value']) ** 2)
         return result
 
     def msd_log_cost_function(self):
@@ -201,11 +259,9 @@ class TrainingSet:
         if (np.any(self.simulated_values == 0.) or
                 np.any(self.simulated_values / self.data['value'] < 1e-300) or
                 np.any(self.simulated_values / self.data['value'] > 1e300)):
-            # print('Cannot handle simulated values or data values; infinite '
-            #       'penalty to cost function.')
             return float('inf')
 
-        result = np.sum(self.weights * np.log10(self.simulated_values /
-                                                self.data['value']) ** 2)
-        # print('ok')
+        result = np.sum(self.data['weight'] *
+                        np.log10(self.simulated_values /
+                                 self.data['value']) ** 2)
         return result

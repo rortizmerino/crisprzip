@@ -5,10 +5,9 @@ import os
 if os.path.exists('C:/Users/HP/depkengit/CRISPR_kinetic_model'):
     sys.path.append('C:/Users/HP/depkengit/CRISPR_kinetic_model')
 
-import pandas as pd
 import numpy as np
 
-from model.training_set import TrainingSet
+from model.training_set import read_dataset, TrainingSet
 from model.fit_optimizer import track_dual_annealing
 
 
@@ -30,6 +29,7 @@ def main(local_search, script_path='./fit_data_da.py', out_path='results/',
         'no_local_search': not bool(local_search),
         'maxiter': 2500,
         'maxfun': 250000,
+        # 'maxfun': 25,
     }
 
     # initial vector and bounds
@@ -44,25 +44,14 @@ def main(local_search, script_path='./fit_data_da.py', out_path='results/',
     out_dir = os.path.abspath(out_path)
 
     # preparing champ and nucleaseq data (ORIGINAL DATASET)
-    champ_data = pd.read_csv(
-        os.path.join(root_dir, 'data/SpCas9/Champ2020/orig_data.csv'),
-        index_col=0, dtype={'mismatch_array': str}
-    )
-    champ_data.rename(columns={'mismatch_array': 'mismatch_positions'},
-                      inplace=True)
-    champ_data['experiment_name'] = 'CHAMP'
+    experiments = ['NucleaSeq', 'Champ']
+    datasets = []
+    for exp in experiments:
+        path = os.path.join(root_dir, f'data/SpCas9/{exp}2020/orig_data.csv')
+        datasets += [read_dataset(path)]
 
-    nuseq_data = pd.read_csv(
-        os.path.join(root_dir, 'data/SpCas9/NucleaSeq2020/orig_data.csv'),
-        index_col=0, dtype={'mismatch_array': str}
-    )
-    nuseq_data.rename(columns={'mismatch_array': 'mismatch_positions'},
-                      inplace=True)
-    nuseq_data['experiment_name'] = 'NucleaSeq'
-
-    all_data = champ_data.append(nuseq_data)
-    all_data.reset_index(drop=True, inplace=True)
-    training_set = TrainingSet(all_data)
+    # make training set
+    training_set = TrainingSet(datasets, experiments)
 
     # run the optimization
     _ = track_dual_annealing(
