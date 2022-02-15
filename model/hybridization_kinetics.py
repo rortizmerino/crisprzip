@@ -78,6 +78,36 @@ class Searcher:
         self.forward_rate_dict = forward_rates
         self.forward_rate_array = self.__get_forward_rate_array()
 
+    @classmethod
+    def from_param_vector(cls, param_vector):
+        """
+        Generates Searcher object on the basis of a parameter vector
+        with the following entries:
+          0 -    N  : on-target hybridization landscape [kBT] - length N+1
+        N+1 - 2N+1  : mismatch penalties [kBT]                - length N
+              2N+2  : log10( k_on [Hz] )
+              2N+3  : log10( k_f [Hz]  )
+              2N+4  : log10( k_clv [Hz] )
+        If the searcher is PAM-insensitive, the hybridization landscape
+        has length N, and making the total parameter vector smaller by
+        a length of 1.
+        """
+
+        # param vectors with even length have pam detection
+        pam_sensing = not len(param_vector) % 2
+        guide_length = (len(param_vector) - 3) // 2
+
+        return cls(
+            on_target_landscape=param_vector[:guide_length + pam_sensing],
+            mismatch_penalties=param_vector[guide_length + pam_sensing:-3],
+            forward_rates={
+                'k_on': 10 ** param_vector[-3],
+                'k_f': 10 ** param_vector[-2],
+                'k_clv': 10 ** param_vector[-1]
+            },
+            pam_detection=pam_sensing
+        )
+
     def __get_forward_rate_array(self):
         """Turns the forward rate dictionary into proper array"""
         forward_rate_array = np.concatenate(
