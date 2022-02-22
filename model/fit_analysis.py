@@ -53,14 +53,14 @@ class LogAnalyzer:
         self.log_file = log_file
 
         self.log_dataframe = self.read_log_file()
-        self.total_steps = self.log_dataframe.index[-1]
+        self.total_steps = self.get_total_steps()
         self.log_searchers = self.make_searcher_series()
 
         self.final_cost = self.get_final_cost()
         self.final_result = self.get_final_result()
 
-        self.lowest_cost = self.get_min_evals()
-        self.best_searchers = self.find_best_searchers()
+        self.lowest_cost = self.get_lowest_cost()
+        # self.best_searchers = self.find_best_searchers()
 
         self.landscape_lims, self.mismatch_lims, self.rates_lims = \
             self.get_plot_limits()
@@ -69,14 +69,15 @@ class LogAnalyzer:
         """Returns a pd.DataFrame with the log content"""
         with open(self.log_file, 'r') as log_reader:
             log_lines = log_reader.readlines()
-            file_length = 0
+            log_start = 0
             for line in log_lines:
-                file_length += 1
-                last_line = line
-        step_no = int(last_line.split('\t')[0])
+                if line.split('\t')[0].strip() == 'Cycle no':
+                    break
+                else:
+                    log_start += 1
 
         dataframe = pd.read_table(self.log_file,
-                                  skiprows=(file_length - step_no - 2),
+                                  skiprows=log_start,
                                   delimiter='\t',
                                   skipinitialspace=True)
         return dataframe
@@ -90,6 +91,16 @@ class LogAnalyzer:
                 if line[:10] == 'Final cost':
                     final_cost = float(line[-21:])
                     return final_cost
+
+    def get_total_steps(self):
+        """Get final cost from log file"""
+        with open(self.log_file, 'r') as log_reader:
+            log_lines = log_reader.readlines()
+
+            for line in log_lines:
+                if line[:17] == 'Total step number':
+                    total_steps = int(line[-21:])
+                    return total_steps
 
     def get_final_result(self):
         """Get final result from log file"""
@@ -132,23 +143,29 @@ class LogAnalyzer:
             searcher_series.loc[i] = Searcher.from_param_vector(param_vector)
         return searcher_series
 
-    def get_min_evals(self) -> np.ndarray:
-        """Returns an array of the lowest costs"""
-        return np.minimum.accumulate(self.log_dataframe['Cost'].to_numpy())
+    # def get_min_evals(self) -> np.ndarray:
+    #     """Outdated. Returns an array of the lowest costs"""
+    #     return np.minimum.accumulate(self.log_dataframe['Cost'].to_numpy())
 
-    def find_best_searchers(self) -> list:
-        """Returns a list of the best searchers (corresponding to
-        the lowest cost array)"""
+    def get_lowest_cost(self) -> np.ndarray:
+        lowest_cost = np.zeros(shape=self.total_steps)
+        for row in self.log_dataframe.iterrows():
+            lowest_cost[int(row[1]['Cycle no']):] = row[1]['Cost']
+        return lowest_cost
 
-        best_searchers = []
-        best_searcher_so_far = self.log_searchers[0]
-
-        for i in self.log_dataframe.index:
-            if self.log_dataframe.loc[i, 'Cost gain'] < 0:
-                best_searcher_so_far = self.log_searchers[i]
-            best_searchers += [best_searcher_so_far]
-
-        return best_searchers
+    # def find_best_searchers(self) -> list:
+    #     """Returns a list of the best searchers (corresponding to
+    #     the lowest cost array)"""
+    #
+    #     best_searchers = []
+    #     best_searcher_so_far = self.log_searchers[0]
+    #
+    #     for i in self.log_dataframe.index:
+    #         if self.log_dataframe.loc[i, 'Cost gain'] < 0:
+    #             best_searcher_so_far = self.log_searchers[i]
+    #         best_searchers += [best_searcher_so_far]
+    #
+    #     return best_searchers
 
     def prepare_opt_path_canvas(self, x_lims=None, y_lims=None,
                                 title='Optimization path', axs=None):
@@ -212,7 +229,8 @@ class LogAnalyzer:
         # current line (point)
         lines[1].set_data(i, self.lowest_cost[i])
         # future line
-        lines[2].set_data(np.arange(i, self.total_steps), self.lowest_cost[i:])
+        lines[2].set_data(np.arange(i, self.total_steps),
+                          self.lowest_cost[i:])
 
     def plot_full_opt_path(self, x_lims=None, y_lims=None,
                            color='cornflowerblue', axs=None,
@@ -261,7 +279,7 @@ class LogAnalyzer:
                                             axs=axs[1]))
         axs[2] = (SearcherPlotter(initial_searcher)
                   .prepare_rates_canvas(self.rates_lims,
-                                        title='Forward_rates',
+                                        title='Forward rates',
                                         axs=axs[2]))
         axs[3] = self.prepare_opt_path_canvas(x_lims=None, y_lims=None,
                                               title='Optimization path',
@@ -283,14 +301,22 @@ class LogAnalyzer:
 
         return lines
 
-    def update_log_dashboard_line(self, lines, i):
+    def update_log_dashboard_line(self, lines, i, blit=False):
         """Updates log dashboard up to data point i"""
-        i = min(i, self.total_steps)
-        plotter = SearcherPlotter(self.best_searchers[i])
-        plotter.update_on_target_landscape(lines[0])
-        plotter.update_mismatches(lines[1])
-        plotter.update_rates(lines[2])
+
+        i = min(i, self.total_steps - 1)
         self.update_partial_opt_path(lines[3:6], i)
+
+        # j points to the best searcher at point i (j <= i)
+        j = self.log_dataframe.index[self.log_dataframe['Cycle no'] <= i][-1]
+
+        if blit and self.log_dataframe.loc[j, 'Cycle no'] < i:
+            pass  # prevents redundant line updating
+        else:
+            plotter = SearcherPlotter(self.log_searchers[j])
+            plotter.update_on_target_landscape(lines[0])
+            plotter.update_mismatches(lines[1])
+            plotter.update_rates(lines[2])
 
     def plot_final_log_dashboard(self, color):
         """Creates full log dashboard, with the result and the
@@ -304,7 +330,7 @@ class LogAnalyzer:
         plotter.update_on_target_landscape(lines[0])
         plotter.update_mismatches(lines[1])
         plotter.update_rates(lines[2])
-        self.update_partial_opt_path(lines[3:6], self.total_steps)
+        self.update_partial_opt_path(lines[3:6], self.total_steps - 1)
 
         lines[4].set_data([], [])
         if len(lines) == 7:
@@ -425,13 +451,17 @@ class DashboardVideo:
         for k in reversed(range(len(self.analyzers))):
             self.analyzers[k].update_log_dashboard_line(
                 self.lines[6 * k:6 * (k + 1)],
-                i
+                i,
+                blit=True
             )
         # update label
         self.lines[-1].txt.set_text(f'Step no. {i:d}')
         return self.lines
 
-    def make_video(self):
+    def make_video(self, fps=None):
+
+        if fps is None:
+            fps = self.dashboard_specs['fps']
 
         # initializing the video
         self.fig, self.axs, self.lines = self.init_video()
@@ -441,21 +471,25 @@ class DashboardVideo:
             fig=self.fig,
             func=self.make_frame,
             # fargs=(lines,),
-            frames=self.total_step_no + 1,
-            interval=1 / self.dashboard_specs['fps'],
+            frames=self.total_step_no,
+            interval=1 / fps,
             blit=True
         )
         return self.video
 
     def save_video(self, video_path,
-                   video_writer: callable = animation.FFMpegWriter):
+                   video_writer: callable = animation.FFMpegWriter,
+                   fps=None):
+
+        if fps is None:
+            fps = self.dashboard_specs['fps']
 
         if video_path[:-4] != '.mp4':
             video_path += '.mp4'
 
         # alternative writer: animation.FFMpegFileWriter
         # more on https://matplotlib.org/stable/api/animation_api.html
-        writer = video_writer(fps=self.dashboard_specs['fps'])
+        writer = video_writer(fps=fps)
 
         self.video.save(video_path, writer=writer,
                         dpi=self.dashboard_specs['dpi'])
