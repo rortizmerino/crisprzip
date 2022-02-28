@@ -80,7 +80,7 @@ class CallTracker:
     """
     This class keeps track of the calls of the evaluation function
     made by any optimization algorithm. It creates two files,
-    'evals.csv', which contains only the call info and is updated while
+    'evals.pkl', which contains only the call info and is updated while
     the optimization is running, and 'log.txt', which is more
     informative and created after finishing.
 
@@ -108,7 +108,11 @@ class CallTracker:
         Like the original evaluation function, but storing the
         time and result as a class attribute (to be exported later)
     export_csv()
-        Exports the details of the function calls to a csv-file.
+        Unused. Exports the details of the function calls to a csv-file.
+        Contains the time at which the function was called, the
+        return value, and the input parameters.
+    export_csv()
+        Exports the details of the function calls to a pickle file.
         Contains the time at which the function was called, the
         return value, and the input parameters.
     get_result()
@@ -116,7 +120,7 @@ class CallTracker:
         optimization function. This can then be integrated in the
         log.txt-file.
     make_log()
-        Creates an extensive log.txt file on the basis of the evals.csv
+        Creates an extensive log.txt file on the basis of the evals.pkl
         file and the optimization function input & output.
     """
 
@@ -177,7 +181,7 @@ class CallTracker:
         self.eval_vals = self.eval_vals[:self.head]
         self.param_vec = self.param_vec[:self.head, :]
 
-        self.export_csv(os.path.join(self.out_path, 'evals.csv'))
+        self.export_pickle(os.path.join(self.out_path, 'evals.pkl'))
         self.make_log(os.path.join(self.out_path, 'log.txt'),
                       cas9=self.is_cas9_like)
 
@@ -206,7 +210,7 @@ class CallTracker:
         # export if 5 minutes have passed
         if ((self.eval_time[self.head] // self.export_period) >
                 (self.eval_time[self.head-1] // self.export_period)):
-            self.export_csv(os.path.join(self.out_path, 'evals.csv'))
+            self.export_pickle(os.path.join(self.out_path, 'evals.pkl'))
 
         # move head
         self.head += 1
@@ -239,6 +243,16 @@ class CallTracker:
             columns=(['time', 'cost'] +
                      [f'p{i:02d}' for i in range(self.param_vec.shape[1])])
         ).to_csv(path)
+
+    def export_pickle(self, path):
+        """Writes arrays to pickle"""
+        pd.DataFrame(
+            data=np.concatenate((np.array([self.eval_time, self.eval_vals]).T,
+                                 self.param_vec),
+                                axis=1),
+            columns=(['time', 'cost'] +
+                     [f'p{i:02d}' for i in range(self.param_vec.shape[1])])
+        ).to_pickle(path)
 
     def get_result(self, res):
         self.optimize_result = res
@@ -358,13 +372,16 @@ class CallTracker:
 
         # 5.2 contents
         def write_eval_line(i):
-
             # get cost gain
             if i == 0:
                 cost_gain = 0
             else:
                 cost_gain = (self.eval_vals[i] -
                              np.minimum.accumulate(self.eval_vals)[i-1])
+
+            # compact log: store only when improvement
+            if cost_gain >= 0:
+                return None
 
             newline = '\t'.join([
                 # cycle number
@@ -382,8 +399,9 @@ class CallTracker:
             ])
             return newline
 
-        eval_lines = '\n'.join([write_eval_line(i) for i in
-                                range(self.eval_time.size)])
+        eval_lines = [write_eval_line(i) for i in range(self.eval_time.size)]
+        eval_lines = [line for line in eval_lines if (line is not None)]
+        log_content = '\n'.join(eval_lines)
 
         # 6. putting everything together
         with open(path, 'w') as log_editor:
@@ -406,6 +424,6 @@ class CallTracker:
                     '  optimization log ',
                     ' ------------------',
                     column_names,
-                    eval_lines
+                    log_content
                 ])
             )

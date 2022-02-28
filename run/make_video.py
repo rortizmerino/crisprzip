@@ -28,7 +28,7 @@ def main(script_path='./fit_data_da.py', out_path='results/',
 
     out_path = os.path.join(out_dir, 'GSA_20220215.mp4')
     log_list = [os.path.join(root_dir,
-                             f'run/vid_data/20220215_471746/{i:03d}/c_log.txt')
+                             f'run/vid_data/20220215_471745/{i:03d}/c_log.txt')
                 for i in range(1, 11)]
     videomaker = DashboardVideo(log_list)
     videomaker.make_video(fps=150)

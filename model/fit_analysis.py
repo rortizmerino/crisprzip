@@ -311,8 +311,10 @@ class LogAnalyzer:
         j = self.log_dataframe.index[self.log_dataframe['Cycle no'] <= i][-1]
 
         if blit and self.log_dataframe.loc[j, 'Cycle no'] < i:
+            print(f'{i:06d}: pass')
             pass  # prevents redundant line updating
         else:
+            print(f'{i:06d}: write')
             plotter = SearcherPlotter(self.log_searchers[j])
             plotter.update_on_target_landscape(lines[0])
             plotter.update_mismatches(lines[1])
