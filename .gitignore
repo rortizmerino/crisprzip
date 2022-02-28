@@ -2,6 +2,7 @@
 .idea
 .run
 */__pycache__/*
+run/cluster/user.config
 
 .temp
 model/__pycache__
