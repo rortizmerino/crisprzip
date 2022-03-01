@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import numpy as np
 
@@ -143,29 +145,11 @@ class LogAnalyzer:
             searcher_series.loc[i] = Searcher.from_param_vector(param_vector)
         return searcher_series
 
-    # def get_min_evals(self) -> np.ndarray:
-    #     """Outdated. Returns an array of the lowest costs"""
-    #     return np.minimum.accumulate(self.log_dataframe['Cost'].to_numpy())
-
     def get_lowest_cost(self) -> np.ndarray:
         lowest_cost = np.zeros(shape=self.total_steps)
         for row in self.log_dataframe.iterrows():
             lowest_cost[int(row[1]['Cycle no']):] = row[1]['Cost']
         return lowest_cost
-
-    # def find_best_searchers(self) -> list:
-    #     """Returns a list of the best searchers (corresponding to
-    #     the lowest cost array)"""
-    #
-    #     best_searchers = []
-    #     best_searcher_so_far = self.log_searchers[0]
-    #
-    #     for i in self.log_dataframe.index:
-    #         if self.log_dataframe.loc[i, 'Cost gain'] < 0:
-    #             best_searcher_so_far = self.log_searchers[i]
-    #         best_searchers += [best_searcher_so_far]
-    #
-    #     return best_searchers
 
     def prepare_opt_path_canvas(self, x_lims=None, y_lims=None,
                                 title='Optimization path', axs=None):
@@ -311,10 +295,8 @@ class LogAnalyzer:
         j = self.log_dataframe.index[self.log_dataframe['Cycle no'] <= i][-1]
 
         if blit and self.log_dataframe.loc[j, 'Cycle no'] < i:
-            print(f'{i:06d}: pass')
             pass  # prevents redundant line updating
         else:
-            print(f'{i:06d}: write')
             plotter = SearcherPlotter(self.log_searchers[j])
             plotter.update_on_target_landscape(lines[0])
             plotter.update_mismatches(lines[1])
@@ -365,7 +347,7 @@ class DashboardVideo:
     default_color_list = ['#5dd39e', '#348aa7']  # blues/greens
     # what about ['#6495ED', '#9CD08F'] ?
 
-    default_alpha = .75
+    default_alpha = .55
 
     dashboard_specs = LogAnalyzer.dashboard_specs
 
@@ -409,6 +391,9 @@ class DashboardVideo:
 
         return landscape_lims, mismatch_lims, rates_lims
 
+    def get_max_step_no(self):
+        return max([analyzer.total_steps for analyzer in self.analyzers])
+
     @staticmethod
     def make_color_map(colors: list, nodes=None):
         if nodes is None:
@@ -419,19 +404,25 @@ class DashboardVideo:
         )
         return cmap
 
-    def get_color_list(self, colors: list = None):
+    @classmethod
+    def get_color_list(cls, length: int, colors: list = None):
         if colors is None:
-            colors = self.default_color_list
-        cmap = self.make_color_map(colors)
+            colors = cls.default_color_list
+        cmap = cls.make_color_map(colors)
         color_list = [to_hex(cmap(x))
-                      for x in np.linspace(0, 1, len(self.analyzers))]
+                      for x in np.linspace(0, 1, length)]
         return color_list
 
     def init_video(self):
         fig, axs = self.analyzers[0].prepare_log_dashboard_canvas()
+        axs[3] = self.analyzers[0].prepare_opt_path_canvas(
+            x_lims=(0, self.get_max_step_no()),
+            axs=axs[3]
+        )
+
         lines = []
 
-        color_list = self.get_color_list()
+        color_list = self.get_color_list(length=len(self.analyzers))
 
         for k in range(len(self.analyzers)):
             lines += self.analyzers[k].prepare_log_dashboard_line(
@@ -449,18 +440,21 @@ class DashboardVideo:
 
         return fig, axs, lines
 
-    def make_frame(self, i):
+    def make_frame(self, i, skipframes=1):
+        j = int(i * skipframes)
+        blit = True if skipframes == 1 else False
+
         for k in reversed(range(len(self.analyzers))):
             self.analyzers[k].update_log_dashboard_line(
                 self.lines[6 * k:6 * (k + 1)],
-                i,
-                blit=True
+                j,
+                blit=blit
             )
         # update label
-        self.lines[-1].txt.set_text(f'Step no. {i:d}')
+        self.lines[-1].txt.set_text(f'Step no. {j:d}')
         return self.lines
 
-    def make_video(self, fps=None):
+    def make_video(self, fps=None, skipframes=1):
 
         if fps is None:
             fps = self.dashboard_specs['fps']
@@ -471,10 +465,9 @@ class DashboardVideo:
         # making the video
         self.video = animation.FuncAnimation(
             fig=self.fig,
-            func=self.make_frame,
-            # fargs=(lines,),
-            frames=self.total_step_no,
-            interval=1 / fps,
+            func=lambda i: self.make_frame(i, skipframes),
+            frames=(self.total_step_no // skipframes + 1),
+            interval=1000 / fps,
             blit=True
         )
         return self.video
@@ -495,3 +488,64 @@ class DashboardVideo:
 
         self.video.save(video_path, writer=writer,
                         dpi=self.dashboard_specs['dpi'])
+
+
+class RunAnalyzer:
+
+    dashboard_specs = LogAnalyzer.dashboard_specs
+    default_alpha = DashboardVideo.default_alpha
+    default_color_list = DashboardVideo.default_color_list
+
+    def __init__(self, job_dir):
+
+        # get analyzers
+        self.analyzers = []
+        for root, dirs, files in os.walk(job_dir):
+            if 'log.txt' in files:
+                self.analyzers += [LogAnalyzer(os.path.join(root, 'log.txt'))]
+        self.analyzers.sort(key=lambda analyzer: analyzer.final_cost)
+
+        self.run_no = len(self.analyzers)
+
+    def display_top_dashboard(self, top=1):
+        fig, axs = self.analyzers[0].prepare_log_dashboard_canvas()
+
+        total_steps = max([analyzer.total_steps
+                             for analyzer in self.analyzers[:top]])
+        axs[3] = self.analyzers[0].prepare_opt_path_canvas(
+            x_lims=(0, total_steps),
+            axs=axs[3]
+        )
+
+        color_list = DashboardVideo.get_color_list(length=top)
+
+        lines = []
+        for k in range(top):
+            lines += self.analyzers[k].prepare_log_dashboard_line(
+                axs,
+                color=color_list[k],
+                **{'alpha': self.default_alpha}
+            )
+
+            self.analyzers[k].update_log_dashboard_line(
+                lines[6 * k:6 * (k + 1)],
+                total_steps,
+                blit=False
+            )
+
+        return fig, axs, lines
+
+        # at = AnchoredText('', frameon=False, loc='upper right',
+        #                   prop={'size': 10,
+        #                         'horizontalalignment': 'right'})
+        # at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        # axs[3].add_artist(at)
+        # lines += [at]
+
+        # j = int(i * skipframes)
+        # blit = True if skipframes == 1 else False
+        #
+        # # update label
+        # self.lines[-1].txt.set_text(f'Step no. {j:d}')
+        # return self.lines
+
