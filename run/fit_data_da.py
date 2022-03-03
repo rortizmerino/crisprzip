@@ -28,8 +28,8 @@ def main(local_search, script_path='./fit_data_da.py', out_path='results/',
     dual_annealing_kwargs = {
         'no_local_search': not bool(local_search),
         'maxiter': 2500,
-        # 'maxfun': 250000,
-        'maxfun': 25,
+        'maxfun': 250000,
+        # 'maxfun': 25,
     }
 
     # initial vector and bounds

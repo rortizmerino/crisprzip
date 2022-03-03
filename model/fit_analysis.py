@@ -3,6 +3,8 @@ import os
 import pandas as pd
 import numpy as np
 
+from typing import Union
+
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, to_hex
 from matplotlib import animation
@@ -58,8 +60,10 @@ class LogAnalyzer:
         self.total_steps = self.get_total_steps()
         self.log_searchers = self.make_searcher_series()
 
+        self.exit_message = self.get_exit_message()
         self.final_cost = self.get_final_cost()
         self.final_result = self.get_final_result()
+        self.runtime = self.get_run_time()
 
         self.lowest_cost = self.get_lowest_cost()
         # self.best_searchers = self.find_best_searchers()
@@ -84,6 +88,13 @@ class LogAnalyzer:
                                   skipinitialspace=True)
         return dataframe
 
+    def get_exit_message(self):
+        """Get exit message from log file"""
+        with open(self.log_file, 'r') as log_reader:
+            log_lines = log_reader.readlines()
+
+        return log_lines[3].strip()
+
     def get_final_cost(self):
         """Get final cost from log file"""
         with open(self.log_file, 'r') as log_reader:
@@ -95,7 +106,7 @@ class LogAnalyzer:
                     return final_cost
 
     def get_total_steps(self):
-        """Get final cost from log file"""
+        """Get total steps from log file"""
         with open(self.log_file, 'r') as log_reader:
             log_lines = log_reader.readlines()
 
@@ -103,6 +114,16 @@ class LogAnalyzer:
                 if line[:17] == 'Total step number':
                     total_steps = int(line[-21:])
                     return total_steps
+
+    def get_run_time(self):
+        """Get run time from log file"""
+        with open(self.log_file, 'r') as log_reader:
+            log_lines = log_reader.readlines()
+
+            for line in log_lines:
+                if line[:12] == 'Time elapsed':
+                    runtime = line[-21:].strip()
+                    return runtime
 
     def get_final_result(self):
         """Get final result from log file"""
@@ -195,7 +216,6 @@ class LogAnalyzer:
         # colored, dot at current opt point
         current_line, = axs.plot([], [], color=color,
                                  linestyle='', zorder=2,
-                                 # copies marker size from SearcherPlotter
                                  marker='.', markersize=12,
                                  **plot_kwargs)
         # gray, right-side line
@@ -474,7 +494,7 @@ class DashboardVideo:
 
     def save_video(self, video_path,
                    video_writer: callable = animation.FFMpegWriter,
-                   fps=None):
+                   fps=None, skipframes=1):
 
         if fps is None:
             fps = self.dashboard_specs['fps']
@@ -491,28 +511,93 @@ class DashboardVideo:
 
 
 class RunAnalyzer:
+    """
+    Analyzes all the results of an optimization run. A RunAnalyzer
+    object is essentially a collection of LogAnalyzer objects that has
+    a number of methods to do quick analyses on them.
+
+    Attributes
+    ----------
+    analyzers: list of LogAnalyzer
+        The LogAnalyzer objects based on the log.txt-files in the
+        job directory.
+
+    Methods
+    -------
+    summarize()
+        Makes a dataframe that summarizes all run information
+    display_top_dashboard()
+        Makes a dashboard figure of the best runs in the job.
+    display_full_dashboard()
+        Makes a dashboard figure of all the runs in the job.
+    make_cost_histogram()
+        Makes a histogram figure of the final costs of all runs.
+    animate_dashboard()
+        Makes an animated dashboard of all the runs or the best runs
+        in the job. Can also save a mp4-video.
+
+    """
 
     dashboard_specs = LogAnalyzer.dashboard_specs
     default_alpha = DashboardVideo.default_alpha
     default_color_list = DashboardVideo.default_color_list
 
-    def __init__(self, job_dir):
+    def __init__(self, job_dirs: Union[list, str]):
+        """
+        Constructor
+
+        Parameters
+        ----------
+        job_dirs: list or str
+            Multiple or one job directories that contain log.txt-files.
+            Job directories are what is being produced by the cluster
+            script, i.e. '20220215_471745'.
+        """
 
         # get analyzers
+        self.job_ids = []
+        self.run_ids = []
         self.analyzers = []
-        for root, dirs, files in os.walk(job_dir):
-            if 'log.txt' in files:
-                self.analyzers += [LogAnalyzer(os.path.join(root, 'log.txt'))]
-        self.analyzers.sort(key=lambda analyzer: analyzer.final_cost)
+        self.log_list = []
+
+        if type(job_dirs) == str:
+            job_dirs = [job_dirs]
+
+        for path in job_dirs:
+            for root, _, files in os.walk(path):
+                if 'log.txt' in files:
+                    self.job_ids += [path[-15:]]
+                    self.run_ids += [int(root[-3:])]
+                    self.analyzers += [LogAnalyzer(os.path.join(root, 'log.txt'))]
+                    self.log_list += [os.path.join(root, 'log.txt')]
 
         self.run_no = len(self.analyzers)
 
+    def summarize(self) -> pd.DataFrame:
+        """Makes a dataframe that summarizes all run information"""
+        summary = pd.DataFrame(
+            data={
+                'Job id': self.job_ids,
+                'Run id': self.run_ids,
+                'Final cost': [a.final_cost for a in self.analyzers],
+                'Total evals': [a.total_steps for a in self.analyzers],
+                'Runtime': [a.runtime for a in self.analyzers],
+                'Exit message': [a.exit_message for a in self.analyzers]
+            })
+        return summary
+
     def display_top_dashboard(self, top=1):
-        fig, axs = self.analyzers[0].prepare_log_dashboard_canvas()
+        """Makes a dashboard figure of the best runs in the job. By
+        default, it displays a dashboard for the single best run."""
+        
+        sorted_analyzers = sorted(self.analyzers,
+                                  key=lambda analyzer: analyzer.final_cost)
+        
+        fig, axs = sorted_analyzers[0].prepare_log_dashboard_canvas()
 
         total_steps = max([analyzer.total_steps
-                             for analyzer in self.analyzers[:top]])
-        axs[3] = self.analyzers[0].prepare_opt_path_canvas(
+                           for analyzer in sorted_analyzers[:top]])
+        axs[3] = sorted_analyzers[0].prepare_opt_path_canvas(
             x_lims=(0, total_steps),
             axs=axs[3]
         )
@@ -521,31 +606,87 @@ class RunAnalyzer:
 
         lines = []
         for k in range(top):
-            lines += self.analyzers[k].prepare_log_dashboard_line(
+            lines += sorted_analyzers[k].prepare_log_dashboard_line(
                 axs,
                 color=color_list[k],
                 **{'alpha': self.default_alpha}
             )
 
-            self.analyzers[k].update_log_dashboard_line(
-                lines[6 * k:6 * (k + 1)],
+            sorted_analyzers[k].update_log_dashboard_line(
+                lines[6*k:6*(k+1)],
                 total_steps,
                 blit=False
             )
 
+        # remove grey line and dot from opt path plot
+        for dump_index in sorted((list(range(4, 6*top, 6)) +
+                                  list(range(5, 6*top, 6))),
+                                 reverse=True):
+            dump_line = lines.pop(dump_index)
+            dump_line.remove()
+
         return fig, axs, lines
 
-        # at = AnchoredText('', frameon=False, loc='upper right',
-        #                   prop={'size': 10,
-        #                         'horizontalalignment': 'right'})
-        # at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
-        # axs[3].add_artist(at)
-        # lines += [at]
+    def display_full_dashboard(self):
+        """Makes a dashboard figure of all the runs in the job."""
+        fig, axs, lines = self.display_top_dashboard(top=self.run_no)
+        return fig, axs, lines
 
-        # j = int(i * skipframes)
-        # blit = True if skipframes == 1 else False
-        #
-        # # update label
-        # self.lines[-1].txt.set_text(f'Step no. {j:d}')
-        # return self.lines
+    def make_cost_histogram(self):
+        """Makes a histogram figure of the final costs of all runs."""
 
+        costs = [a.final_cost for a in self.analyzers]
+        bins = 10. ** np.arange(
+            min(-4, np.floor(np.log10(min(costs)))),
+            max(0, np.ceil(np.log10(max(costs)))) + .5,
+            .5
+        )
+
+        fig, axs = plt.subplots(1, 1, figsize=(3, 4))
+        axs.set_xscale('log')
+        axs.hist(costs, bins=bins)
+        axs.set_xlabel('Final cost (A.U.)', **SearcherPlotter.label_style)
+        axs.set_ylabel('Run count', **SearcherPlotter.label_style)
+        return fig, axs
+
+    def animate_dashboard(self, top: int = None,
+                          save_path: str = '',
+                          skipframes: int = 1, fps: int = None):
+        """
+        Makes an animated dashboard of all the runs or the best runs
+        in the job. Can also save a mp4-video.
+
+        Parameters
+        ----------
+        top: int
+            The number of (best) runs to show results of
+        save_path: str
+            Location where to store a .mp4-video. If not provided,
+            no video will be saved (this is the default).
+        skipframes: int
+            Number of frames to skip. Set these to 100 / 1000 to speed
+            up the animation process for long optimization runs.
+        fps: int
+            Framerate (1/s). Default follows from the DashboardVideo
+            class variable dashboard_specs.
+        """
+
+        # find the log paths associated with top solutions
+        if top is not None:
+            d = dict(zip(self.log_list, [a.final_cost for a in self.analyzers]))
+            log_list = list(dict(sorted(d.items(), key=lambda item: item[1]))
+                            .keys())[:top]
+        else:
+            log_list = self.log_list
+
+        videomaker = DashboardVideo(log_list)
+
+        if fps is None:
+            fps = DashboardVideo.dashboard_specs['fps']
+
+        videomaker.make_video(fps=fps, skipframes=skipframes)
+
+        if save_path != '':
+            videomaker.save_video(video_path=save_path, fps=fps)
+
+        return videomaker.video
