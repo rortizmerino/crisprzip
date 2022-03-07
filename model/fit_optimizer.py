@@ -380,7 +380,7 @@ class CallTracker:
                              np.minimum.accumulate(self.eval_vals)[i-1])
 
             # compact log: store only when improvement
-            if cost_gain >= 0:
+            if i > 0 and cost_gain >= 0:
                 return None
 
             newline = '\t'.join([

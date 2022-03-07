@@ -7,11 +7,12 @@ from typing import Union
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, to_hex
-from matplotlib import animation
+from matplotlib import animation, colors
 import seaborn as sns
 from matplotlib.offsetbox import AnchoredText
 
 from model.hybridization_kinetics import Searcher, SearcherPlotter
+from model.training_set import TrainingSet
 
 
 class LogAnalyzer:
@@ -344,6 +345,110 @@ class LogAnalyzer:
     def make_dashboard_video(self):
         video = DashboardVideo([self.log_file]).make_video()
         return video
+
+    def compare_to_data(self, training_set: TrainingSet):
+        data = training_set.data
+        training_set.run_all_simulations(self.final_result,
+                                         multiprocessing=False)
+        data['simulation'] = training_set.simulated_values
+        return data
+
+    @staticmethod
+    def plot_single_mm_fit(data_df, experiment_name,
+                           color=None, axs=None):
+        ylabel = ''
+        if color is None:
+            if experiment_name.lower() == 'nucleaseq':
+                color = 'orange'
+                ylabel = r'Effective cleavage rate $k_{clv} (s^{-1})$'
+            elif experiment_name.lower() == 'champ':
+                color = 'cornflowerblue'
+                ylabel = r'Effective association constant $K_A (nM^{-1})$'
+            else:
+                color = 'cornflowerblue'
+
+        df_subset = data_df.loc[
+            (data_df.mismatch_number == 1) &
+            (data_df.experiment_name == experiment_name),
+            ['value', 'error', 'simulation']
+        ]
+
+        if axs is None:
+            _, axs = plt.subplots(1, 1)
+
+        axs.errorbar(x=np.arange(1, 21),
+                     y=df_subset['value'], yerr=df_subset['error'],
+                     fmt='.', color=color, markersize=12)
+        axs.plot(np.arange(1, 21), df_subset['simulation'],
+                 '-', color=color, linewidth=2)
+
+        # window dressing
+        axs.set_xticks(np.arange(1, 21))
+        axs.set_xticks(np.arange(1, 21))
+        axs.set_xticklabels(['1'] + 3 * [''] + ['5'] + 4 * [''] +
+                            ['10'] + 4 * [''] + ['15'] + 4 * [''] + ['20'])
+        axs.set_xlabel(r'Mismatch position $b$', **SearcherPlotter.label_style)
+        axs.set_yscale('log')
+        axs.set_ylabel(ylabel, **SearcherPlotter.label_style)
+        axs.set_title(f'{experiment_name} - single mismatch targets',
+                      **SearcherPlotter.title_style)
+        return axs
+
+    @staticmethod
+    def plot_double_mm_fit(data_df, experiment_name,
+                           cmap=None, axs=None):
+        ylabel = ''
+        if cmap is None:
+            if experiment_name.lower() == 'nucleaseq':
+                cmap = 'Oranges_r'
+                ylabel = r'Effective cleavage rate $k_{clv} (s^{-1})$'
+            elif experiment_name.lower() == 'champ':
+                cmap = 'Blues_r'
+                ylabel = r'Effective association constant $K_A (nM^{-1})$'
+            else:
+                cmap = 'Blues_r'
+
+        df_subset = data_df.loc[
+            (data_df.mismatch_number == 2) &
+            (data_df.experiment_name == experiment_name),
+            ['mismatch_array', 'value', 'error', 'simulation']
+        ]
+
+        def mismatch_array_to_coordinates(mm_array):
+            x = mm_array.index('1')
+            y = x + 1 + mm_array[x+1:].index('1')
+            return x, y
+
+        show_matrix = np.zeros(shape=(20, 20))
+        for row in df_subset.iterrows():
+            x, y = mismatch_array_to_coordinates(row[1]['mismatch_array'])
+            show_matrix[x, y] = row[1]['value']
+            show_matrix[y, x] = row[1]['simulation']
+
+        if axs is None:
+            _, axs = plt.subplots(1, 1)
+
+        shw = axs.imshow(show_matrix, cmap=cmap, norm=colors.LogNorm(),
+                         origin='lower')
+        bar = plt.colorbar(shw, ax=axs)
+
+        # window dressing
+        axs.set_xlabel(r'Mismatch 1 position $b_1$',
+                       **SearcherPlotter.label_style)
+        axs.set_xticks(np.arange(0, 20))
+        axs.set_xticklabels(['1'] + 3 * [''] + ['5'] + 4 * [''] +
+                            ['10'] + 4 * [''] + ['15'] + 4 * [''] + ['20'])
+
+        axs.set_ylabel(r'Mismatch 2 position $b_2$',
+                       **SearcherPlotter.label_style)
+        axs.set_yticks(np.arange(0, 20))
+        axs.set_yticklabels(['1'] + 3 * [''] + ['5'] + 4 * [''] +
+                            ['10'] + 4 * [''] + ['15'] + 4 * [''] + ['20'])
+
+        bar.set_label(ylabel, **SearcherPlotter.label_style)
+        axs.set_title(f'{experiment_name} - double mismatch targets',
+                      **SearcherPlotter.title_style)
+        return axs
 
 
 class DashboardVideo:
