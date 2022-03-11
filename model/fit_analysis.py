@@ -6,6 +6,7 @@ import numpy as np
 from typing import Union
 
 import matplotlib.pyplot as plt
+from scipy.stats import pearsonr
 from matplotlib.colors import LinearSegmentedColormap, to_hex
 from matplotlib import animation, colors
 import seaborn as sns
@@ -422,9 +423,9 @@ class LogAnalyzer:
         ]
 
         def mismatch_array_to_coordinates(mm_array):
-            x = mm_array.index('1')
-            y = x + 1 + mm_array[x + 1:].index('1')
-            return x, y
+            b1 = mm_array.index('1')
+            b2 = b1 + 1 + mm_array[b1 + 1:].index('1')
+            return b1, b2
 
         show_matrix = np.zeros(shape=(20, 20))
         for row in df_subset.iterrows():
@@ -531,7 +532,7 @@ class LogAnalyzer:
         maxlim = max(axs.get_xlim()[1], axs.get_ylim()[1], extramaxlim)
         axs.set_xlim(minlim, maxlim)
         axs.set_ylim(minlim, maxlim)
-        axs.plot([0, 1], [0, 1], '--k', transform=axs.transAxes,
+        axs.plot([minlim, maxlim], [minlim, maxlim], '--k',
                  linewidth=1, zorder=0)
         axs.minorticks_on()
 
@@ -544,7 +545,9 @@ class LogAnalyzer:
 
         axs.legend(loc='upper left', handlelength=1.)
 
-        #TODO: display correlation coefficient in title
+        correlation, _ = pearsonr(np.log10(df_subset['value']),
+                                  np.log10(df_subset['simulation']))
+        axs.set_title('correlation: %.2f' % correlation, pad=18)
 
         return axs
 
