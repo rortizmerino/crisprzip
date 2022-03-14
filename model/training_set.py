@@ -70,7 +70,9 @@ class TrainingSet:
 
     def __init__(self, datasets: list, experiment_names: list,
                  experiment_weights=None,
-                 weigh_error=True, weigh_multiplicity=True):
+                 weigh_error=True, rel_error=True,
+                 weigh_multiplicity=True,
+                 normalize_weights=True):
         """
         Constructor method
 
@@ -89,7 +91,7 @@ class TrainingSet:
             length of the datasets list. Have a look at the class variable
             experiment_map to see which experiment names are associated to
             a simulation.
-        experiment_weights: list [bool]
+        experiment_weights: list [float]
             The weights of the experiments. The length must agree with the
             length of the datasets list. Default is a list of ones,
             indicating that each dataset contributes equally to the cost
@@ -97,9 +99,17 @@ class TrainingSet:
         weigh_error: bool
             Determines whether entries should be weighed according to the
             relative measurement error (True by default)
+        rel_error: bool
+            Determines whether the error weight is taken on the basis
+            of relative (True) or absolute (False) errors (True by
+            default).
         weigh_multiplicity: bool
             Determines whether entries should be weighed according to the
             multiplicity of their mismatch array (True by default)
+        normalize_weights: bool
+            Determines whether the weights within each dataset should
+            be normalized to 1. After having applied the experiment
+            weights, all weights are normalized again.
         """
 
         # check if dimensions are ok
@@ -132,7 +142,9 @@ class TrainingSet:
             dataframe['experiment_name'] = experiment_names[i]
             dataframe['weight'] = (experiment_weights[i] *
                                    self.get_weights(dataframe, weigh_error,
-                                                    weigh_multiplicity))
+                                                    rel_error,
+                                                    weigh_multiplicity,
+                                                    normalize_weights))
 
             self.data = self.data.append(dataframe)
         self.data.reset_index(drop=True, inplace=True)
@@ -143,11 +155,14 @@ class TrainingSet:
         self.simulations = self.prepare_experiments()
         self.simulated_values = pd.Series(index=self.data.index, dtype=float)
 
-    def get_cost(self, param_vector, multiprocessing=True):
+    def get_cost(self, param_vector, multiprocessing=True, log_msd=True):
         """Returns the log cost of a particular param_vector. This
         function should be called in the SimulatedAnnealer class."""
         self.run_all_simulations(param_vector, multiprocessing)
-        return self.msd_log_cost_function()
+        if log_msd:
+            return self.msd_log_cost_function()
+        else:
+            return self.msd_lin_cost_function()
 
     def run_all_simulations(self, param_vector, multiprocessing=True,
                             job_number=-1):
@@ -201,27 +216,33 @@ class TrainingSet:
             )
         return simulations
 
-    def get_weights(self, dataset: pd.DataFrame, weigh_error=True,
-                    weigh_multiplicity=True) -> pd.DataFrame:
+    @classmethod
+    def get_weights(cls, dataset: pd.DataFrame, weigh_error=True,
+                    rel_error=True, weigh_multiplicity=True,
+                    normalize=True) -> pd.Series:
         """Calculates weight on the basis of error and multiplicity"""
         weights = pd.Series(data=1, index=dataset.index)
         if weigh_error:
-            weights = weights * self.weigh_error(dataset)
+            weights = weights * cls.weigh_error(dataset, rel_error)
         if weigh_multiplicity:
-            weights = weights * self.weigh_multiplicity(dataset)
-        normalized_weights = weights / weights.sum()
-        return normalized_weights
+            weights = weights * cls.weigh_multiplicity(dataset)
+        if normalize:
+            weights = weights / weights.sum()
+        return weights
 
     @staticmethod
-    def weigh_error(dataset: pd.DataFrame) -> pd.Series:
+    def weigh_error(dataset: pd.DataFrame, relative=True) -> pd.Series:
         """Calculates weights for data based on the multiplicity of the
         mismatch array"""
-        relative_error = dataset['error'] / dataset['value']
 
         weights = pd.Series(
             index=dataset.index,
-            data=(1 / relative_error) ** 2
+            data=(1 / dataset['error']) ** 2
         )
+
+        if relative:
+            weights = weights * (dataset['value'] ** 2)
+
         return weights
 
     @staticmethod
