@@ -6,7 +6,8 @@ source "${my_dir}/user.config"  # contains netid, email, root_dir
 remote="${netid}@hpc05.tudelft.net"
 
 # check if results dir empty
-if [[ -z $(ssh "$remote" "ls -A ${remote_root_dir}/results/") ]]; then
+new_job_dirs=$(ssh "$remote" "ls -A ${remote_root_dir}/results/")
+if [[ -z $new_job_dirs ]]; then
   echo "Results directory empty"
   exit 0
 fi
@@ -15,6 +16,14 @@ fi
 printf "Collecting results...\n"
 rsync -rv --min-size=1 --remove-source-files "${remote}:${remote_root_dir}/results/" "${local_root_dir}/results"
 # min-size prevents empty (typically, stdout) files from being copied
+
+# copy results to project drive - FINISH!
+#echo
+#read -p "Copy results to the project drive? (y/n): " -n 1 -r
+#if [[ $REPLY =~ ^[Yy]$ ]]; then
+#    rsync -rv "${local_root_dir}/results"
+#    echo 'Copied to project drive'
+#fi
 
 # after rsync, we remove all results to keep the cluster clean
 echo
