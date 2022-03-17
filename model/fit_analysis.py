@@ -356,6 +356,49 @@ class LogAnalyzer:
         return data
 
     @staticmethod
+    def plot_on_target_fit(data_df, experiment_name,
+                           color=None, axs=None):
+        ylabel = ''
+        if color is None:
+            if experiment_name.lower() == 'nucleaseq':
+                color = 'orange'
+                ylabel = r'$k_{clv} ($s$^{-1})$'
+            elif experiment_name.lower() == 'champ':
+                color = 'tab:blue'
+                ylabel = r'$K_A ($nM$^{-1})$'
+            else:
+                color = 'tab:blue'
+
+        df_subset = data_df.loc[
+            (data_df.mismatch_number == 0) &
+            (data_df.experiment_name == experiment_name),
+            ['value', 'error', 'weight', 'simulation']
+        ]
+
+        if axs is None:
+            _, axs = plt.subplots(1, 1)
+
+        axs.plot([1], df_subset['value'],
+                 '.', color=color, alpha=.7, markersize=10,
+                 label='data')
+        axs.plot([1], df_subset['simulation'],
+                 'x', color=color, alpha=.7, markersize=8, label='model')
+
+        # window dressing
+        axs.set_xticks([1])
+        axs.set_xticklabels(['on-target'])
+        axs.set_yscale('log')
+        axs.set_ylabel(ylabel, **SearcherPlotter.label_style)
+        axs.legend(loc='lower right')
+
+        partial_cost = (np.sum(df_subset['weight'] *
+                               np.log10(df_subset['simulation'] /
+                                        df_subset['value']) ** 2))
+        axs.set_title(f'on-target cost: {partial_cost:.2e}', pad=18)
+
+        return axs
+
+    @staticmethod
     def plot_single_mm_fit(data_df, experiment_name,
                            color=None, axs=None):
         ylabel = ''
@@ -378,12 +421,11 @@ class LogAnalyzer:
         if axs is None:
             _, axs = plt.subplots(1, 1)
 
-        axs.errorbar(x=np.arange(1, 21),
-                     y=df_subset['value'], yerr=df_subset['error'],
-                     fmt='.', color=color, markersize=12,
-                     label='data')
+        axs.plot(np.arange(1, 21), df_subset['value'], '.',
+                 color=color, alpha=.7, markersize=10,
+                 label='data')
         axs.plot(np.arange(1, 21), df_subset['simulation'],
-                 '-', color=color, linewidth=2, label='model')
+                 '-', color=color, alpha=.7, linewidth=1.5, label='model')
 
         # window dressing
         axs.set_xticks(np.arange(1, 21))
@@ -393,7 +435,7 @@ class LogAnalyzer:
         axs.set_xlabel(r'mismatch position $b$', **SearcherPlotter.label_style)
         axs.set_yscale('log')
         axs.set_ylabel(ylabel, **SearcherPlotter.label_style)
-        axs.legend(loc='upper left')
+        axs.legend(loc='lower right')
 
         partial_cost = (np.sum(df_subset['weight'] *
                                np.log10(df_subset['simulation'] /
@@ -562,8 +604,8 @@ class LogAnalyzer:
             figsize=(12, 8),
             constrained_layout=True,
         )
-        grid = fig.add_gridspec(ncols=3, nrows=1+len(experiment_names),
-                                width_ratios=[1, 1.12, 1],
+        grid = fig.add_gridspec(ncols=4, nrows=1+len(experiment_names),
+                                width_ratios=[.4, 1, 1.12, 1],
                                 height_ratios=([0.2] +
                                                len(experiment_names) * [1]),
                                 hspace=.05, wspace=.08)
@@ -573,18 +615,28 @@ class LogAnalyzer:
             axs += [
                 fig.add_subplot(grid[i+1, 0]),
                 fig.add_subplot(grid[i+1, 1]),
-                fig.add_subplot(grid[i+1, 2])
+                fig.add_subplot(grid[i+1, 2]),
+                fig.add_subplot(grid[i+1, 3])
             ]
 
-            axs[3 * i] = self.plot_single_mm_fit(data_df,
+            axs[4 * i] = self.plot_on_target_fit(data_df,
                                                  experiment_names[i],
-                                                 axs=axs[3 * i])
-            axs[3 * i + 1] = self.plot_double_mm_fit(data_df,
+                                                 axs=axs[4 * i])
+            axs[4 * i + 1] = self.plot_single_mm_fit(data_df,
                                                      experiment_names[i],
-                                                     axs=axs[3 * i + 1])
-            axs[3 * i + 2] = self.plot_fit_correlation(data_df,
+                                                     axs=axs[4 * i + 1])
+            axs[4 * i + 2] = self.plot_double_mm_fit(data_df,
+                                                     experiment_names[i],
+                                                     axs=axs[4 * i + 2])
+            axs[4 * i + 3] = self.plot_fit_correlation(data_df,
                                                        experiment_names[i],
-                                                       axs=axs[3 * i + 2])
+                                                       axs=axs[4 * i + 3])
+
+            # adjust on-target scale to 1 mm scale
+            axs[4 * i].set_ylim(axs[4 * i + 1].get_ylim())
+            # remove labels from 1 mm scale\
+            axs[4 * i + 1].set_yticklabels([])
+            axs[4 * i + 1].set_ylabel('')
 
         return fig, axs
 
