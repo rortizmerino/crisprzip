@@ -601,22 +601,31 @@ class LogAnalyzer:
             experiment_names = [experiment_names]
 
         fig = plt.figure(
-            figsize=(12, 8),
+            figsize=(14, 8),
             constrained_layout=True,
         )
-        grid = fig.add_gridspec(ncols=4, nrows=1+len(experiment_names),
-                                width_ratios=[.4, 1, 1.12, 1],
-                                height_ratios=([0.2] +
-                                               len(experiment_names) * [1]),
-                                hspace=.05, wspace=.08)
+        grid = fig.add_gridspec(ncols=4, nrows=2*len(experiment_names),
+                                width_ratios=[.45, 1, 1.12, 1],
+                                height_ratios=(len(experiment_names) *
+                                               [.1, 1]),
+                                hspace=.02, wspace=.08)
 
+        title_axs = []
         axs = []
         for i in range(len(experiment_names)):
+
+            title_axs += [fig.add_subplot(grid[2*i, :])]
+            title_axs[-1].set_axis_off()
+            title_axs[-1].text(.5, .5, experiment_names[i],
+                               horizontalalignment='center',
+                               fontsize=14,
+                               **SearcherPlotter.title_style)
+
             axs += [
-                fig.add_subplot(grid[i+1, 0]),
-                fig.add_subplot(grid[i+1, 1]),
-                fig.add_subplot(grid[i+1, 2]),
-                fig.add_subplot(grid[i+1, 3])
+                fig.add_subplot(grid[2*i+1, 0]),
+                fig.add_subplot(grid[2*i+1, 1]),
+                fig.add_subplot(grid[2*i+1, 2]),
+                fig.add_subplot(grid[2*i+1, 3])
             ]
 
             axs[4 * i] = self.plot_on_target_fit(data_df,
@@ -634,9 +643,9 @@ class LogAnalyzer:
 
             # adjust on-target scale to 1 mm scale
             axs[4 * i].set_ylim(axs[4 * i + 1].get_ylim())
-            # remove labels from 1 mm scale\
-            axs[4 * i + 1].set_yticklabels([])
-            axs[4 * i + 1].set_ylabel('')
+            # # remove labels from 1 mm scale\
+            # axs[4 * i + 1].set_yticklabels([])
+            # axs[4 * i + 1].set_ylabel('')
 
         return fig, axs
 
@@ -868,6 +877,13 @@ class RunAnalyzer:
                     self.log_list += [os.path.join(root, 'log.txt')]
 
         self.run_no = len(self.analyzers)
+
+        self.summary = self.summarize()
+        self.best_analyzer = self.analyzers[
+            self.summary
+                .index[(self.summary['Final cost'] ==
+                        self.summary['Final cost'].min())][0]
+        ]
 
     def summarize(self) -> pd.DataFrame:
         """Makes a dataframe that summarizes all run information"""
