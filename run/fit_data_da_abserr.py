@@ -58,17 +58,14 @@ def main(local_search, script_path='./fit_data_da.py',
     training_set = TrainingSet(datasets=datasets,
                                experiment_names=experiments,
                                experiment_weights=[1, 1],
-                               weigh_error=True, rel_error=False,
+                               weigh_error=True,
+                               rel_error=False,
                                weigh_multiplicity=True,
                                normalize_weights=False)
 
-    get_lin_msd = lambda param_vec: training_set.get_cost(param_vec,
-                                                          multiprocessing=True,
-                                                          log_msd=False)
-
     # run the optimization
     _ = track_dual_annealing(
-        func=get_lin_msd,
+        func=training_set.get_cost,
         x0=initial_param_vector,
         bounds=param_bounds,
         out_path=out_dir,
