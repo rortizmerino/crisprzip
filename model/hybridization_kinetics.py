@@ -445,11 +445,11 @@ class SearcherTargetComplex(Searcher):
         return bound_fraction
 
     def plot_off_target_landscape(self, y_lims=None, color='firebrick',
-                                  axs=None):
+                                  axs=None, **plot_kwargs):
         """Creates off-target landscape plot"""
         axs = SearcherPlotter(self).plot_off_target_landscape(
             self.target_mismatches,
-            y_lims=y_lims, color=color, axs=axs)
+            y_lims=y_lims, color=color, axs=axs, **plot_kwargs)
         return axs
 
 
