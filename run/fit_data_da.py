@@ -21,12 +21,15 @@ def get_root_dir(script_path):
     return root_dir
 
 
-def main(local_search, script_path='./fit_data_da.py', out_path='results/',
+def main(normalized_weights=False, extra_nucleaseq_weight=None,
+         script_path='./fit_data_da.py',
+         out_path='results/',
          array_id=1):
 
     # FIT SETTINGS
     dual_annealing_kwargs = {
-        'no_local_search': not bool(local_search),
+        # 'no_local_search': not bool(local_search),
+        'no_local_search': False,
         'maxiter': 2500,
         'maxfun': 250000,
         # 'maxfun': 25,
@@ -51,7 +54,14 @@ def main(local_search, script_path='./fit_data_da.py', out_path='results/',
         datasets += [read_dataset(path)]
 
     # make training set
-    training_set = TrainingSet(datasets, experiments)
+    if extra_nucleaseq_weight is None:
+        experiment_weights = None
+    else:
+        experiment_weights = [extra_nucleaseq_weight, 1]
+
+    training_set = TrainingSet(datasets, experiments,
+                               experiment_weights=experiment_weights,
+                               normalize_weights=normalized_weights)
 
     # run the optimization
     _ = track_dual_annealing(
