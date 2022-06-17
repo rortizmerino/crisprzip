@@ -587,9 +587,12 @@ class LogAnalyzer:
 
         axs.legend(loc='upper left', handlelength=1.)
 
-        correlation, _ = pearsonr(np.log10(df_subset['value']),
-                                  np.log10(df_subset['simulation']))
-        axs.set_title('correlation: %.2f' % correlation, pad=18)
+        try:
+            correlation, _ = pearsonr(np.log10(df_subset['value']),
+                                      np.log10(df_subset['simulation']))
+            axs.set_title('correlation: %.2f' % correlation, pad=18)
+        except ValueError:
+            axs.set_title('correlation unknown', pad=18)
 
         return axs
 
