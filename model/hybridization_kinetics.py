@@ -7,6 +7,7 @@ from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 import seaborn as sns
 
+import aggregate_landscapes
 
 class Searcher:
     """
@@ -451,6 +452,13 @@ class SearcherTargetComplex(Searcher):
             self.target_mismatches,
             y_lims=y_lims, color=color, axs=axs, **plot_kwargs)
         return axs
+
+    def get_all_aggregate_rates(self, intermediate_range):
+        aggr_rates, intermediate_id = (
+            aggregate_landscapes
+            .get_all_aggregate_rates(self, intermediate_range)
+        )
+        return aggr_rates
 
 
 def exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
