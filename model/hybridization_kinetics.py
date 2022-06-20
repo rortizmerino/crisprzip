@@ -7,7 +7,8 @@ from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 import seaborn as sns
 
-import aggregate_landscapes
+import model.aggregate_landscapes
+
 
 class Searcher:
     """

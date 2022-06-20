@@ -1,6 +1,6 @@
 from scipy.linalg import inv
 
-from hybridization_kinetics import *
+from model.hybridization_kinetics import *
 
 
 def setup_partial_rate_matrix(forward_rate_array: np.ndarray,
