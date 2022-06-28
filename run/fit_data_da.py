@@ -36,9 +36,9 @@ def main(normalized_weights=False, extra_nucleaseq_weight=None,
     }
 
     # initial vector and bounds
-    initial_param_vector = np.ones(shape=(44,))
-    param_lower_bounds = np.array(21 * [-10] + 20 * [0] + 3 * [-6])
-    param_upper_bounds = np.array(41 * [20] + 3 * [6])
+    initial_param_vector = np.ones(shape=(45,))
+    param_lower_bounds = np.array(20 * [-10] + 20 * [0] + 5 * [-6])
+    param_upper_bounds = np.array(40 * [20] + 5 * [6])
     param_bounds = np.stack([param_lower_bounds,
                              param_upper_bounds], axis=1)
 
@@ -69,6 +69,7 @@ def main(normalized_weights=False, extra_nucleaseq_weight=None,
         x0=initial_param_vector,
         bounds=param_bounds,
         out_path=out_dir,
+        cas9_log=False,  # 45 parameters instead of 44
         **dual_annealing_kwargs
     )
 

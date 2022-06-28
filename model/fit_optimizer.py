@@ -9,7 +9,7 @@ from scipy.optimize import dual_annealing
 
 def track_dual_annealing(func, x0, bounds, out_path,
                          maxfun=1e7, no_local_search=True,
-                         **opt_kwargs):
+                         cas9_log=True, **opt_kwargs):
     """
     Enveloping function for the dual_annealing function from the
     scipy.optimize package. Keeps track of all function evaluations
@@ -64,7 +64,8 @@ def track_dual_annealing(func, x0, bounds, out_path,
     with CallTracker(eval_func=func,
                      max_evals=int(maxfun) + 100,
                      out_path=out_path,
-                     opt_kwargs=opt_kwargs) as tracker:
+                     opt_kwargs=opt_kwargs,
+                     is_cas9_like=cas9_log) as tracker:
 
         # running the dual annealing algorithm
         result = dual_annealing(func=tracker.evaluate_and_track,
