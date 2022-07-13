@@ -73,7 +73,7 @@ def get_all_aggregate_rates(searcher_target_complex,
         intermediate state. Default is [7, 14).
 
     Returns
-    _______
+    -------
     aggr_rates: dict
         Dictionary containging the rates k_OI, k_IC, k_IO, k_CI
         (Open, Intermediate, Closed). Confusingly, these have later

@@ -7,7 +7,7 @@ from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 import seaborn as sns
 
-import model.aggregate_landscapes
+from model import aggregate_landscapes
 
 
 class Searcher:
@@ -21,13 +21,14 @@ class Searcher:
         N, length of the nucleic acid guide (in bp)
     on_target_landscape: array_like
         Contains the hybridization energies of the intermediate R-loop
-        states. In presence of a PAM state, it has length N+1.
+        states on an on-target, relative to the PAM energy. In presence
+        of a PAM state, it has length N (otherwise N-1).
     mismatch_penalties: array_like
         Contains the energetic penalties associated with a mismatch
         at a particular R-loop position. Has length N.
-    forward_rates: dict
-        Specifies the forward rates in the model. Should contain 'k_on'
-        (at reference concentration 1 nM), 'k_f' and 'k_clv'.
+    internal_rates: dict
+        Specifies the context-independent rates in the model. Should
+        contain 'k_off', 'k_f' and 'k_clv'.
     pam_detection: bool
         If true, the landscape includes a PAM recognition state. True
         by default.
@@ -45,7 +46,7 @@ class Searcher:
     def __init__(self,
                  on_target_landscape: npt.ArrayLike,
                  mismatch_penalties: npt.ArrayLike,
-                 forward_rates: dict,
+                 internal_rates: dict,
                  pam_detection=True):
         """Constructor method"""
 
@@ -61,14 +62,14 @@ class Searcher:
 
         # check whether landscape dimensions agree with guide length
         guide_length = mismatch_penalties.size
-        if on_target_landscape.size != pam_detection + guide_length:
+        if on_target_landscape.size != pam_detection + guide_length - 1:
             raise ValueError('Landscape dimensions do not match guide length')
 
-        # check whether forward_rates dictionary contains proper keys
-        if not ('k_on' in forward_rates and
-                'k_f' in forward_rates and
-                'k_clv' in forward_rates):
-            raise ValueError('Forward rates dictionary should include k_on, '
+        # check whether internal_rates dictionary contains proper keys
+        if not ('k_off' in internal_rates and
+                'k_f' in internal_rates and
+                'k_clv' in internal_rates):
+            raise ValueError('Forward rates dictionary should include k_off, '
                              'k_f and k_clv as keys')
 
         # assign values
@@ -77,49 +78,56 @@ class Searcher:
 
         self.on_target_landscape = on_target_landscape
         self.mismatch_penalties = mismatch_penalties
-        self.forward_rate_dict = forward_rates
-        self.forward_rate_array = self.__get_forward_rate_array()
+        self.internal_rates = internal_rates
+        # self.forward_rate_array = self.__get_forward_rate_array()
 
     @classmethod
-    def from_param_vector(cls, param_vector):
+    def from_param_vector(cls, param_vector,
+                          guide_length=20, pam_sensing=True):
         """
         Generates Searcher object on the basis of a parameter vector
         with the following entries:
-          0 -    N  : on-target hybridization landscape [kBT] - length N+1
-        N+1 - 2N+1  : mismatch penalties [kBT]                - length N
-              2N+2  : log10( k_on [Hz] )
-              2N+3  : log10( k_f [Hz]  )
-              2N+4  : log10( k_clv [Hz] )
+
+        0 -  N-1  : on-target hybridization landscape [kBT] - length N
+                    (does not include PAM energy)
+        N - 2N-1  : mismatch penalties [kBT]                - length N
+            2N    : log10( k_off [Hz] )
+            2N+1  : log10( k_f [Hz] )
+            2N+2  : log10( k_clv [Hz] )
+
+        The remaining entries in the parameter vector (>2N+2) are
+        ignored; these should correspond to the context-dependent
+        parameters.
+
         If the searcher is PAM-insensitive, the hybridization landscape
-        has length N, and making the total parameter vector smaller by
+        has length N-1, making the total parameter vector smaller by
         a length of 1.
         """
 
-        # param vectors with even length have pam detection
-        pam_sensing = not len(param_vector) % 2
-        guide_length = (len(param_vector) - 3) // 2
+        # the index between landscape & mismatch penalties
+        separator = guide_length + pam_sensing - 1
 
         return cls(
-            on_target_landscape=param_vector[:guide_length + pam_sensing],
-            mismatch_penalties=param_vector[guide_length + pam_sensing:-3],
-            forward_rates={
-                'k_on': 10 ** param_vector[-3],
-                'k_f': 10 ** param_vector[-2],
-                'k_clv': 10 ** param_vector[-1]
+            on_target_landscape=param_vector[:separator],
+            mismatch_penalties=param_vector[separator:separator+guide_length],
+            internal_rates={
+                'k_off': 10 ** param_vector[separator+guide_length],
+                'k_f': 10 ** param_vector[separator+guide_length+1],
+                'k_clv': 10 ** param_vector[separator+guide_length+2]
             },
             pam_detection=pam_sensing
         )
 
-    def __get_forward_rate_array(self):
+    def __get_forward_rate_array(self, k_on):
         """Turns the forward rate dictionary into proper array"""
         forward_rate_array = np.concatenate(
             #  solution state
-            (self.forward_rate_dict['k_on'] * np.ones(1),
+            (k_on * np.ones(1),
              # PAM and intermediate R-loop states
-             self.forward_rate_dict['k_f'] *
-             np.ones(self.on_target_landscape.size - 1),
+             self.internal_rates['k_f'] *
+             np.ones(self.on_target_landscape.size),
              # final/complete R-loop state
-             self.forward_rate_dict['k_clv'] * np.ones(1),
+             self.internal_rates['k_clv'] * np.ones(1),
              # cleaved state
              np.zeros(1))
         )
@@ -127,12 +135,12 @@ class Searcher:
 
     def generate_dead_clone(self):
         """Returns Searcher object with zero catalytic activity"""
-        dead_forward_rate_dict = self.forward_rate_dict.copy()
+        dead_forward_rate_dict = self.internal_rates.copy()
         dead_forward_rate_dict['k_clv'] = 0
         dead_searcher = Searcher(
             on_target_landscape=self.on_target_landscape,
             mismatch_penalties=self.mismatch_penalties,
-            forward_rates=dead_forward_rate_dict
+            internal_rates=dead_forward_rate_dict
         )
         return dead_searcher
 
@@ -140,7 +148,7 @@ class Searcher:
         """Returns SearcherTargetComplex object"""
         return SearcherTargetComplex(self.on_target_landscape,
                                      self.mismatch_penalties,
-                                     self.forward_rate_dict,
+                                     self.internal_rates,
                                      target_mismatches)
 
     def plot_on_target_landscape(self, y_lims=None, color='cornflowerblue',
@@ -186,18 +194,18 @@ class SearcherTargetComplex(Searcher):
         N, with entries 0 (matches) and 1 (mismatches).
     on_target_landscape: ndarray
         Contains the hybridization energies of the intermediate R-loop
-        states on an on-target. In presence of a PAM state, it has
-        length N+1.
+        states on an on-target, relative to the PAM energy. In presence
+        of a PAM state, it has length N (otherwise N-1).
     off_target_landscape: ndarray
         Contains the hybridization energies of the intermediate R-loop
-        states on the current off-target. In presence of a PAM state,
-        it has length N+1.
+        states on the current off-target.  In presence
+        of a PAM state, it has length N (otherwise N-1).
     mismatch_penalties: ndarray
         Contains the energetic penalties associated with a mismatch
         at a particular R-loop position. Has length N.
-    forward_rates: dict
-        Specifies the forward rates in the model. Should contain 'k_on'
-        (at reference concentration 1 nM), 'k_f' and 'k_clv'.
+    internal_rates: dict
+        Specifies the context-independent rates in the model. Should
+        contain 'k_off', 'k_f' and 'k_clv'.
     pam_detection: bool
         If true, the landscape includes a PAM recognition state. True
         by default.
@@ -222,10 +230,10 @@ class SearcherTargetComplex(Searcher):
     """
 
     def __init__(self, on_target_landscape: np.ndarray,
-                 mismatch_penalties: np.ndarray, forward_rates: dict,
+                 mismatch_penalties: np.ndarray, internal_rates: dict,
                  target_mismatches: np.ndarray):
         Searcher.__init__(self, on_target_landscape, mismatch_penalties,
-                          forward_rates)
+                          internal_rates)
 
         # check dimensions of mismatch position array
         if target_mismatches.size != self.guide_length:
@@ -245,15 +253,39 @@ class SearcherTargetComplex(Searcher):
 
     def __get_off_target_landscape(self):
         """Adds penalties due to mismatches to landscape"""
-        landscape_penalties = np.concatenate(
-            (np.zeros(int(self.pam_detection)),  # add preceding zero for PAM
-             np.cumsum(self.target_mismatches * self.mismatch_penalties))
-        )
-        return self.on_target_landscape + landscape_penalties
+        # landscape_penalties = np.concatenate(
+        #     (np.zeros(int(self.pam_detection)),  # add preceding zero for PAM
+        #      np.cumsum(self.target_mismatches * self.mismatch_penalties))
+        # )
+
+        landscape_penalties = np.cumsum(self.target_mismatches *
+                                        self.mismatch_penalties)
+        if self.pam_detection:
+            off_target_landscape = (self.on_target_landscape +
+                                    landscape_penalties)
+        else:
+            # without PAM detection, the penalty on the first state
+            # is not added yet to have a consistent output
+            off_target_landscape = (self.on_target_landscape +
+                                    landscape_penalties[1:])
+
+        return off_target_landscape
 
     def __get_landscape_diff(self):
         """Returns the difference between landscape states"""
-        hybrid_landscape = self.off_target_landscape
+        if self.pam_detection:
+            hybrid_landscape = np.concatenate((
+                np.zeros(1),  # preceding zero representing the PAM state
+                self.off_target_landscape
+            ))
+        else:
+            # add potential penalty on the first state (= not PAM)
+            hybrid_landscape = np.concatenate((
+                np.array([
+                    self.target_mismatches[0] * self.mismatch_penalties[0]
+                ]),
+                self.off_target_landscape
+            ))
         return np.diff(hybrid_landscape, prepend=np.zeros(1))
 
     def __get_backward_rate_array(self):
@@ -262,23 +294,21 @@ class SearcherTargetComplex(Searcher):
         backward_rate_array = np.concatenate(
             #  solution state
             (np.zeros(1),
-             # PAM and R-loop states
-             self.forward_rate_array[:-2] * boltzmann_factors,
+             # PAM state
+             self.internal_rates['k_off'],
+             # R-loop states
+             self.internal_rates['k_f'] * boltzmann_factors,
              # cleaved state
              np.zeros(1))
         )
         return backward_rate_array
 
-    def get_rate_matrix(self, searcher_concentration: float = 1.0) \
-            -> np.ndarray:
+    def get_rate_matrix(self, on_rate: float) -> np.ndarray:
         """Sets up the rate matrix describing the master equation"""
 
         # shallow copy to prevent overwriting due to concentration
-        forward_rates = self.forward_rate_array.copy()
-        backward_rates = self.backward_rate_array
-
-        # Taking account of non-reference concentration (in units nM)
-        forward_rates[0] *= searcher_concentration
+        forward_rates = self.__get_forward_rate_array(k_on=on_rate)
+        backward_rates = self.backward_rate_array.copy()
 
         diagonal1 = -(forward_rates + backward_rates)
         diagonal2 = backward_rates[1:]
@@ -291,7 +321,7 @@ class SearcherTargetComplex(Searcher):
 
     def solve_master_equation(self, initial_condition: np.ndarray,
                               time: npt.ArrayLike,
-                              searcher_concentration: float = 1.0,
+                              on_rate: float,
                               rebinding=True) -> np.ndarray:
 
         """
@@ -307,9 +337,8 @@ class SearcherTargetComplex(Searcher):
             true), and should sum to 1.
         time: array_like
             Times at which the master equation is evaluated.
-        searcher_concentration: float
-            Searcher concentration in solution (units nM). Takes the
-            reference value of 1 nM by default.
+        on_rate: float
+            Binding rate from solution to the target (in Hz).
         rebinding: bool
             If true, on-rate is left intact, if false, on-rate is set
             to zero and solution state becomes absorbing.
@@ -326,7 +355,7 @@ class SearcherTargetComplex(Searcher):
         if initial_condition.size != (2 + self.on_target_landscape.size):
             raise ValueError('Initial condition should be of same length as'
                              'hybridization landscape')
-        rate_matrix = self.get_rate_matrix(searcher_concentration)
+        rate_matrix = self.get_rate_matrix(on_rate)
 
         # if rebinding is prohibited, on-rate should be zero
         if not rebinding:
@@ -369,20 +398,19 @@ class SearcherTargetComplex(Searcher):
 
         return np.squeeze(landscape_occupancy.T)
 
-    def get_cleavage_probability(self) -> float:
+    def get_cleavage_probability(self, k_on: float) -> float:
         """Returns the probability that a searcher in the PAM state (if
         present, otherwise b=1) cleaves a target before having left
         it."""
 
-        forward_rates = self.forward_rate_array[1:-1]
+        forward_rates = self.__get_forward_rate_array(k_on)[1:-1]
         backward_rates = self.backward_rate_array[1:-1]
         gamma = backward_rates / forward_rates
         cleavage_probability = 1 / (1 + gamma.cumprod().sum())
         return cleavage_probability
 
     def get_cleaved_fraction(self, time: npt.ArrayLike,
-                             searcher_concentration: float = 1.0) \
-            -> npt.ArrayLike:
+                             on_rate: float) -> npt.ArrayLike:
         """
         Returns the fraction of cleaved targets after a specified time
 
@@ -390,9 +418,8 @@ class SearcherTargetComplex(Searcher):
         ----------
         time: array_like
             Times at which the cleaved fraction is calculated
-        searcher_concentration: float
-            Searcher concentration in solution (units nM). Takes the
-            reference value of 1 nM by default.
+        on_rate: float
+            Binding rate from solution to the target (in Hz).
 
         Returns
         -------
@@ -405,13 +432,12 @@ class SearcherTargetComplex(Searcher):
             (np.ones(1), np.zeros(self.on_target_landscape.size + 1))
         )
         prob_distr = self.solve_master_equation(unbound_state, time,
-                                                searcher_concentration)
+                                                on_rate)
         cleaved_fraction = prob_distr.T[-1]
         return cleaved_fraction
 
     def get_bound_fraction(self, time: npt.ArrayLike,
-                           searcher_concentration: float = 1.0) \
-            -> npt.ArrayLike:
+                           on_rate: float) -> npt.ArrayLike:
         """
         Returns the fraction of bound targets after a specified time,
         assuming that searcher is catalytically dead/inactive.
@@ -420,9 +446,8 @@ class SearcherTargetComplex(Searcher):
         ----------
         time: array_like
             Times at which the cleaved fraction is calculated
-        searcher_concentration: float
-            Searcher concentration in solution (units nM). Takes the
-            reference value of 1 nM by default.
+        on_rate: float
+            Binding rate from solution to the target (in Hz).
 
         Returns
         -------
@@ -436,13 +461,13 @@ class SearcherTargetComplex(Searcher):
         )
         # setting up clone SearcherTargetComplex object with zero
         # catalytic activity, k_clv=0
-        dead_forward_rate_dict = self.forward_rate_dict.copy()
+        dead_forward_rate_dict = self.internal_rates.copy()
         dead_forward_rate_dict['k_clv'] = 0
         dead_searcher_complex = self.generate_dead_clone()
 
         prob_distr = \
             dead_searcher_complex.solve_master_equation(unbound_state, time,
-                                                        searcher_concentration)
+                                                        on_rate)
         bound_fraction = 1 - prob_distr.T[0]
         return bound_fraction
 
@@ -657,7 +682,7 @@ class SearcherPlotter:
     def update_rates(self, line: Line2D) -> None:
         """Updates rate points to represent forward rates"""
         searcher = self.searcher
-        forward_rates = list(searcher.forward_rate_dict.values())
+        forward_rates = list(searcher.internal_rates.values())
         line.set_data(
             list(range(3)),
             forward_rates
