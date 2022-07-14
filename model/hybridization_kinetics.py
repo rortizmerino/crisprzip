@@ -118,7 +118,7 @@ class Searcher:
             pam_detection=pam_sensing
         )
 
-    def __get_forward_rate_array(self, k_on):
+    def _get_forward_rate_array(self, k_on):
         """Turns the forward rate dictionary into proper array"""
         forward_rate_array = np.concatenate(
             #  solution state
@@ -295,9 +295,9 @@ class SearcherTargetComplex(Searcher):
             #  solution state
             (np.zeros(1),
              # PAM state
-             self.internal_rates['k_off'],
+             np.array([self.internal_rates['k_off']]),
              # R-loop states
-             self.internal_rates['k_f'] * boltzmann_factors,
+             self.internal_rates['k_f'] * boltzmann_factors[1:],
              # cleaved state
              np.zeros(1))
         )
@@ -307,7 +307,7 @@ class SearcherTargetComplex(Searcher):
         """Sets up the rate matrix describing the master equation"""
 
         # shallow copy to prevent overwriting due to concentration
-        forward_rates = self.__get_forward_rate_array(k_on=on_rate)
+        forward_rates = self._get_forward_rate_array(k_on=on_rate)
         backward_rates = self.backward_rate_array.copy()
 
         diagonal1 = -(forward_rates + backward_rates)
@@ -352,8 +352,8 @@ class SearcherTargetComplex(Searcher):
         """
 
         # check dimensions initial condition
-        if initial_condition.size != (2 + self.on_target_landscape.size):
-            raise ValueError('Initial condition should be of same length as'
+        if initial_condition.size != (3 + self.guide_length):
+            raise ValueError('Initial condition should be of same length as '
                              'hybridization landscape')
         rate_matrix = self.get_rate_matrix(on_rate)
 
@@ -403,7 +403,7 @@ class SearcherTargetComplex(Searcher):
         present, otherwise b=1) cleaves a target before having left
         it."""
 
-        forward_rates = self.__get_forward_rate_array(k_on)[1:-1]
+        forward_rates = self._get_forward_rate_array(k_on)[1:-1]
         backward_rates = self.backward_rate_array[1:-1]
         gamma = backward_rates / forward_rates
         cleavage_probability = 1 / (1 + gamma.cumprod().sum())
@@ -429,7 +429,7 @@ class SearcherTargetComplex(Searcher):
         """
 
         unbound_state = np.concatenate(
-            (np.ones(1), np.zeros(self.on_target_landscape.size + 1))
+            (np.ones(1), np.zeros(self.guide_length + 2))
         )
         prob_distr = self.solve_master_equation(unbound_state, time,
                                                 on_rate)
@@ -457,7 +457,7 @@ class SearcherTargetComplex(Searcher):
         """
 
         unbound_state = np.concatenate(
-            (np.ones(1), np.zeros(self.on_target_landscape.size + 1))
+            (np.ones(1), np.zeros(self.guide_length + 2))
         )
         # setting up clone SearcherTargetComplex object with zero
         # catalytic activity, k_clv=0
