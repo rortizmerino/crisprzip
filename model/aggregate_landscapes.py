@@ -90,7 +90,7 @@ def get_all_aggregate_rates(searcher_target_complex,
             intermediate_range[0]
     )
 
-    kf = searcher_target_complex.forward_rate_array
+    kf = searcher_target_complex.get_forward_rate_array(k_on=0.)
     kb = searcher_target_complex.backward_rate_array
 
     # From open (=PAM) to intermediate

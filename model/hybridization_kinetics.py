@@ -118,7 +118,7 @@ class Searcher:
             pam_detection=pam_sensing
         )
 
-    def _get_forward_rate_array(self, k_on):
+    def get_forward_rate_array(self, k_on):
         """Turns the forward rate dictionary into proper array"""
         forward_rate_array = np.concatenate(
             #  solution state
@@ -151,12 +151,19 @@ class Searcher:
                                      self.internal_rates,
                                      target_mismatches)
 
+    def calculate_solution_energy(self, k_on):
+        """Given an on-rate, returns the effective free energy of the
+        solution state (under the assumption of detailed balance)"""
+        return np.log(k_on/self.internal_rates['k_off'])
+
     def plot_on_target_landscape(self, y_lims=None, color='cornflowerblue',
-                                 axs=None, **plot_kwargs):
+                                 axs=None, on_rates: list = None,
+                                 **plot_kwargs):
         """Creates on-target landscape plot"""
         axs = SearcherPlotter(self).plot_on_target_landscape(y_lims=y_lims,
                                                              color=color,
                                                              axs=axs,
+                                                             on_rates=on_rates,
                                                              **plot_kwargs)
         return axs
 
@@ -169,13 +176,14 @@ class Searcher:
                                                             **plot_kwargs)
         return axs
 
-    def plot_forward_rates(self, y_lims=None, color='cornflowerblue', axs=None,
-                           **plot_kwargs):
+    def plot_internal_rates(self, y_lims=None, color='cornflowerblue', axs=None,
+                            extra_rates: dict = None, **plot_kwargs):
         """Creates forward rates plot"""
-        axs = SearcherPlotter(self).plot_forward_rates(y_lims=y_lims,
-                                                       color=color,
-                                                       axs=axs,
-                                                       **plot_kwargs)
+        axs = SearcherPlotter(self).plot_internal_rates(y_lims=y_lims,
+                                                        color=color,
+                                                        axs=axs,
+                                                        extra_rates=extra_rates,
+                                                        **plot_kwargs)
         return axs
 
 
@@ -253,11 +261,6 @@ class SearcherTargetComplex(Searcher):
 
     def __get_off_target_landscape(self):
         """Adds penalties due to mismatches to landscape"""
-        # landscape_penalties = np.concatenate(
-        #     (np.zeros(int(self.pam_detection)),  # add preceding zero for PAM
-        #      np.cumsum(self.target_mismatches * self.mismatch_penalties))
-        # )
-
         landscape_penalties = np.cumsum(self.target_mismatches *
                                         self.mismatch_penalties)
         if self.pam_detection:
@@ -307,7 +310,7 @@ class SearcherTargetComplex(Searcher):
         """Sets up the rate matrix describing the master equation"""
 
         # shallow copy to prevent overwriting due to concentration
-        forward_rates = self._get_forward_rate_array(k_on=on_rate)
+        forward_rates = self.get_forward_rate_array(k_on=on_rate)
         backward_rates = self.backward_rate_array.copy()
 
         diagonal1 = -(forward_rates + backward_rates)
@@ -403,7 +406,7 @@ class SearcherTargetComplex(Searcher):
         present, otherwise b=1) cleaves a target before having left
         it."""
 
-        forward_rates = self._get_forward_rate_array(k_on)[1:-1]
+        forward_rates = self.get_forward_rate_array(k_on)[1:-1]
         backward_rates = self.backward_rate_array[1:-1]
         gamma = backward_rates / forward_rates
         cleavage_probability = 1 / (1 + gamma.cumprod().sum())
@@ -472,14 +475,16 @@ class SearcherTargetComplex(Searcher):
         return bound_fraction
 
     def plot_off_target_landscape(self, y_lims=None, color='firebrick',
-                                  axs=None, **plot_kwargs):
+                                  axs=None, on_rates: list = None,
+                                  **plot_kwargs):
         """Creates off-target landscape plot"""
         axs = SearcherPlotter(self).plot_off_target_landscape(
             self.target_mismatches,
-            y_lims=y_lims, color=color, axs=axs, **plot_kwargs)
+            y_lims=y_lims, color=color, axs=axs, on_rates=on_rates,
+            **plot_kwargs)
         return axs
 
-    def get_all_aggregate_rates(self, intermediate_range):
+    def get_all_aggregate_rates(self, intermediate_range=(7, 14)):
         aggr_rates, intermediate_id = (
             aggregate_landscapes
             .get_all_aggregate_rates(self, intermediate_range)
@@ -612,27 +617,34 @@ class SearcherPlotter:
 
     def prepare_rates_canvas(self, y_lims: tuple = None,
                              title: str = 'Forward rates',
-                             axs: Axes = None) -> Axes:
+                             axs: Axes = None,
+                             extra_rates: dict = None) -> Axes:
         """Creates or adapts Figure and Axes objects such
         that rates points can later be added."""
         searcher = self.searcher
         if axs is None:
             _, axs = plt.subplots(1, 1, figsize=(3, 3))
 
+        if extra_rates is not None:
+            extra_labels = list(extra_rates.keys())
+            extra_values = list(extra_rates.values())
+        else:
+            extra_labels = []
+            extra_values = []
+
         # x axis
-        axs.set_xlim(-1, 3)
+        axs.set_xlim(-1, 3 + len(extra_labels))
         axs.set_xlabel(' ')
-        axs.set_xticks(np.arange(3))
-        x_tick_labels = ([r'${k_{on}}$',
-                          r'${k_{f}}$',
-                          r'${k_{clv}}$'])
+        axs.set_xticks(np.arange(3 + len(extra_labels)))
+        x_tick_labels = (extra_labels +
+                         [r'${k_{off}}$', r'${k_{f}}$', r'${k_{clv}}$'])
         axs.set_xticklabels(x_tick_labels, rotation=0)
 
         # y axis
         axs.set_yscale('log')
         if y_lims is None:
-            y_lims = (min(searcher.forward_rate_array[:-1]),
-                      max(searcher.forward_rate_array[:-1]))
+            all_rates = list(searcher.internal_rates.values()) + extra_values
+            y_lims = (min(all_rates), max(all_rates))
         axs.set_ylim(y_lims[0] * 10 ** -.5, y_lims[1] * 10 ** .5)
         axs.set_ylabel(r'Rate (${s^{-1}})$', **self.label_style)
 
@@ -663,13 +675,22 @@ class SearcherPlotter:
         """Updates landscape line to represent on-target landscape"""
         searcher = self.searcher
         line.set_data(
-            np.arange(-searcher.pam_detection, searcher.guide_length + 2),
+            np.arange(1 - searcher.pam_detection, searcher.guide_length + 2),
             np.concatenate(
-                (np.zeros(1),  # solution state
+                (np.zeros(1),  # pam / 1st state
                  searcher.on_target_landscape,
                  np.zeros(1))  # cleaved state
             )
         )
+
+    def update_solution_energies(self, lines: list, on_rates: list) -> None:
+        """Updates the free energy level of the solution state(s)"""
+        searcher = self.searcher
+        for line, on_rate in zip(lines, on_rates):
+            line.set_data(
+                np.arange(-searcher.pam_detection, 1),
+                np.array([searcher.calculate_solution_energy(on_rate), 0])
+            )
 
     def update_mismatches(self, line: Line2D) -> None:
         """Updates landscape line to represent mismatches"""
@@ -679,19 +700,35 @@ class SearcherPlotter:
             searcher.mismatch_penalties
         )
 
-    def update_rates(self, line: Line2D) -> None:
+    def update_rates(self, line: Line2D, extra_rates: dict = None) -> None:
         """Updates rate points to represent forward rates"""
         searcher = self.searcher
-        forward_rates = list(searcher.internal_rates.values())
+
+        if extra_rates is not None:
+            extra_values = list(extra_rates.values())
+        else:
+            extra_values = []
+
+        forward_rates = extra_values + list(searcher.internal_rates.values())
         line.set_data(
-            list(range(3)),
+            list(range(3+len(extra_values))),
             forward_rates
         )
 
     def plot_on_target_landscape(self, y_lims: tuple = None,
                                  color='cornflowerblue', axs: Axes = None,
-                                 **plot_kwargs) -> Axes:
+                                 on_rates: list = None, **plot_kwargs) -> Axes:
         """Creates complete on-target landscape plot"""
+
+        if y_lims is None and on_rates is not None:
+            searcher = self.searcher
+            solution_energies = [searcher.calculate_solution_energy(k_on)
+                                 for k_on in on_rates]
+            y_lims = (min(list(searcher.on_target_landscape) +
+                          solution_energies + [0]),
+                      max(list(searcher.on_target_landscape) +
+                          solution_energies))
+
         axs = self.prepare_landscape_canvas(
             y_lims,
             title='On-target landscape',
@@ -703,19 +740,36 @@ class SearcherPlotter:
             **plot_kwargs
         )
         self.update_on_target_landscape(line)
+
+        if on_rates is not None:
+            solution_lines = []
+            for _ in on_rates:
+                solution_lines += [self.prepare_landscape_line(
+                    axs, color=color, linestyle='dashed', **plot_kwargs
+                )]
+            self.update_solution_energies(solution_lines, on_rates)
+
         return axs
 
     def plot_off_target_landscape(self, mismatch_positions: np.ndarray,
                                   y_lims: tuple = None,
                                   color='firebrick', axs: Axes = None,
+                                  on_rates: list = None,
                                   **plot_kwargs) -> Axes:
         """Creates complete off-target landscape plot, based on the
         mismatch positions array"""
 
         searcher = self.searcher.probe_target(mismatch_positions)
-        if y_lims is None:
-            y_lims = (min(searcher.off_target_landscape.min(), 0),
-                      searcher.off_target_landscape.max())
+        if y_lims is None and on_rates is not None:
+            if on_rates is None:
+                solution_energies = []
+            else:
+                solution_energies = [searcher.calculate_solution_energy(k_on)
+                                     for k_on in on_rates]
+            y_lims = (min(list(searcher.on_target_landscape) +
+                          solution_energies + [0]),
+                      max(list(searcher.off_target_landscape) +
+                          solution_energies))
 
         axs = self.prepare_landscape_canvas(
             y_lims,
@@ -728,13 +782,22 @@ class SearcherPlotter:
         ]
         self.update_on_target_landscape(lines[0])
         lines[1].set_data(
-            np.arange(-searcher.pam_detection, searcher.guide_length + 2),
+            np.arange(1 - searcher.pam_detection, searcher.guide_length + 2),
             np.concatenate(
                 (np.zeros(1),  # solution state
                  searcher.off_target_landscape,
                  np.zeros(1))  # cleaved state
             )
         )
+
+        if on_rates is not None:
+            solution_lines = []
+            for _ in on_rates:
+                solution_lines += [self.prepare_landscape_line(
+                    axs, color=color, linestyle='dashed', **plot_kwargs
+                )]
+            self.update_solution_energies(solution_lines, on_rates)
+
         return axs
 
     def plot_mismatch_penalties(self, y_lims: tuple = None,
@@ -750,15 +813,16 @@ class SearcherPlotter:
         self.update_mismatches(line)
         return axs
 
-    def plot_forward_rates(self, y_lims: tuple = None,
-                           color='cornflowerblue', axs: Axes = None,
-                           **plot_kwargs) -> Axes:
+    def plot_internal_rates(self, y_lims: tuple = None,
+                            color='cornflowerblue', axs: Axes = None,
+                            extra_rates: dict = None, **plot_kwargs) -> Axes:
         """Creates complete forward rates plot"""
         axs = self.prepare_rates_canvas(
             y_lims,
             title='Forward rates',
-            axs=axs
+            axs=axs,
+            extra_rates=extra_rates
         )
         line = self.prepare_rates_line(axs, color=color, **plot_kwargs)
-        self.update_rates(line)
+        self.update_rates(line, extra_rates=extra_rates)
         return axs
