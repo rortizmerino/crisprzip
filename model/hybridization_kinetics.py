@@ -637,12 +637,18 @@ class SearcherPlotter:
     def update_on_target_landscape(self, line: Line2D) -> None:
         """Updates landscape line to represent on-target landscape"""
         searcher = self.searcher
+        # TURN OFF CLEAVED
+        # line.set_data(
+        #     np.arange(-searcher.pam_detection, searcher.guide_length + 2),
+        #     np.concatenate(
+        #         (np.zeros(1),  # solution state
+        #          searcher.on_target_landscape,
+        #          np.zeros(1))  # cleaved state
         line.set_data(
-            np.arange(-searcher.pam_detection, searcher.guide_length + 2),
+            np.arange(-searcher.pam_detection, searcher.guide_length + 1),
             np.concatenate(
                 (np.zeros(1),  # solution state
-                 searcher.on_target_landscape,
-                 np.zeros(1))  # cleaved state
+                 searcher.on_target_landscape)
             )
         )
 
@@ -703,11 +709,17 @@ class SearcherPlotter:
         ]
         self.update_on_target_landscape(lines[0])
         lines[1].set_data(
-            np.arange(-searcher.pam_detection, searcher.guide_length + 2),
+            # TURN OFF CLEAVED STTATE AT 0 kBT
+            # np.arange(-searcher.pam_detection, searcher.guide_length + 2),
+            # np.concatenate(
+            #     (np.zeros(1),  # solution state
+            #      searcher.off_target_landscape,
+            #      np.zeros(1))  # cleaved state
+            # )
+        np.arange(-searcher.pam_detection, searcher.guide_length + 1),
             np.concatenate(
                 (np.zeros(1),  # solution state
-                 searcher.off_target_landscape,
-                 np.zeros(1))  # cleaved state
+                 searcher.off_target_landscape)
             )
         )
         return axs
