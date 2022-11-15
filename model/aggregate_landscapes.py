@@ -103,12 +103,12 @@ def get_all_aggregate_rates(searcher_target_complex,
                                     start=1+intermediate_id,
                                     stop=len(kf) - 2)
 
-    # From intermediate to closed (=bound)
+    # From intermediate to open (=PAM)
     k_io = calculate_effective_rate(kb[::-1], kf[::-1],
                                     start=(len(kf)-1) - (1+intermediate_id),
                                     stop=(len(kf)-1) - 1)
 
-    # From intermediate to closed (=bound)
+    # From closed (=bound) to intermediate
     k_ci = calculate_effective_rate(kb[::-1], kf[::-1],
                                     start=1,
                                     stop=(len(kf)-1) - (1+intermediate_id))
