@@ -359,7 +359,7 @@ class SearcherTargetComplex(Searcher):
         """
 
         # check dimensions initial condition
-        if initial_condition.size != (2 + self.on_target_landscape.size):
+        if initial_condition.size != (3 + self.on_target_landscape.size):
             raise ValueError('Initial condition should be of same length as'
                              'hybridization landscape')
         rate_matrix = self.get_rate_matrix(on_rate)
@@ -436,7 +436,7 @@ class SearcherTargetComplex(Searcher):
         """
 
         unbound_state = np.concatenate(
-            (np.ones(1), np.zeros(self.on_target_landscape.size + 1))
+            (np.ones(1), np.zeros(self.on_target_landscape.size + 2))
         )
         prob_distr = self.solve_master_equation(unbound_state, time,
                                                 on_rate)
@@ -464,7 +464,7 @@ class SearcherTargetComplex(Searcher):
         """
 
         unbound_state = np.concatenate(
-            (np.ones(1), np.zeros(self.on_target_landscape.size + 1))
+            (np.ones(1), np.zeros(self.on_target_landscape.size + 2))
         )
         # setting up clone SearcherTargetComplex object with zero
         # catalytic activity, k_clv=0

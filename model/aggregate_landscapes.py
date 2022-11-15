@@ -83,13 +83,17 @@ def get_all_aggregate_rates(searcher_target_complex,
 
     """
 
-    intermediate_id = (
+    # Because the target landscape is defined to have length N,
+    # instead of N+1, we add one to the intermediate id
+    intermediate_id = 1 + (
             np.argmin(searcher_target_complex
                       .off_target_landscape[intermediate_range[0]:
                                             intermediate_range[1]]) +
             intermediate_range[0]
     )
 
+    # These follow the old definitions, so have N+1 nonzero energy states
+    # and 2 zero energy states (solution / cleaved)
     kf = searcher_target_complex.get_forward_rate_array(k_on=0.)
     kb = searcher_target_complex.backward_rate_array
 
@@ -103,12 +107,12 @@ def get_all_aggregate_rates(searcher_target_complex,
                                     start=1+intermediate_id,
                                     stop=len(kf) - 2)
 
-    # From intermediate to closed (=bound)
+    # From intermediate to open (=PAM)
     k_io = calculate_effective_rate(kb[::-1], kf[::-1],
                                     start=(len(kf)-1) - (1+intermediate_id),
                                     stop=(len(kf)-1) - 1)
 
-    # From intermediate to closed (=bound)
+    # From closed (=bound) to intermediate
     k_ci = calculate_effective_rate(kb[::-1], kf[::-1],
                                     start=1,
                                     stop=(len(kf)-1) - (1+intermediate_id))
