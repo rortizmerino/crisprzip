@@ -7,7 +7,7 @@ from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 import seaborn as sns
 
-from model import aggregate_landscapes
+import model.aggregate_landscapes
 
 
 class Searcher:
@@ -176,14 +176,16 @@ class Searcher:
                                                             **plot_kwargs)
         return axs
 
-    def plot_internal_rates(self, y_lims=None, color='cornflowerblue', axs=None,
-                            extra_rates: dict = None, **plot_kwargs):
+    def plot_internal_rates(self, y_lims=None, color='cornflowerblue',
+                            axs=None, extra_rates: dict = None, **plot_kwargs):
         """Creates forward rates plot"""
-        axs = SearcherPlotter(self).plot_internal_rates(y_lims=y_lims,
-                                                        color=color,
-                                                        axs=axs,
-                                                        extra_rates=extra_rates,
-                                                        **plot_kwargs)
+        axs = SearcherPlotter(self).plot_internal_rates(
+            y_lims=y_lims,
+            color=color,
+            axs=axs,
+            extra_rates=extra_rates,
+            **plot_kwargs
+        )
         return axs
 
 
@@ -267,10 +269,12 @@ class SearcherTargetComplex(Searcher):
             off_target_landscape = (self.on_target_landscape +
                                     landscape_penalties)
         else:
-            # without PAM detection, the penalty on the first state
-            # is not added yet to have a consistent output
-            off_target_landscape = (self.on_target_landscape +
-                                    landscape_penalties[1:])
+            # # without PAM detection, the penalty on the first state
+            # # is not added yet to have a consistent output
+            # off_target_landscape = (self.on_target_landscape +
+            #                         landscape_penalties[1:])
+            raise ValueError('No support yet for off target landscape'
+                             'without PAM detection')
 
         return off_target_landscape
 
@@ -341,7 +345,7 @@ class SearcherTargetComplex(Searcher):
         time: array_like
             Times at which the master equation is evaluated.
         on_rate: float
-            Binding rate from solution to the target (in Hz).
+            Rate (Hz) with which the searcher binds the target from solution.
         rebinding: bool
             If true, on-rate is left intact, if false, on-rate is set
             to zero and solution state becomes absorbing.
@@ -355,8 +359,8 @@ class SearcherTargetComplex(Searcher):
         """
 
         # check dimensions initial condition
-        if initial_condition.size != (3 + self.guide_length):
-            raise ValueError('Initial condition should be of same length as '
+        if initial_condition.size != (2 + self.on_target_landscape.size):
+            raise ValueError('Initial condition should be of same length as'
                              'hybridization landscape')
         rate_matrix = self.get_rate_matrix(on_rate)
 
@@ -401,19 +405,19 @@ class SearcherTargetComplex(Searcher):
 
         return np.squeeze(landscape_occupancy.T)
 
-    def get_cleavage_probability(self, k_on: float) -> float:
+    def get_cleavage_probability(self) -> float:
         """Returns the probability that a searcher in the PAM state (if
         present, otherwise b=1) cleaves a target before having left
         it."""
 
-        forward_rates = self.get_forward_rate_array(k_on)[1:-1]
+        forward_rates = self.get_forward_rate_array[1:-1]
         backward_rates = self.backward_rate_array[1:-1]
         gamma = backward_rates / forward_rates
         cleavage_probability = 1 / (1 + gamma.cumprod().sum())
         return cleavage_probability
 
     def get_cleaved_fraction(self, time: npt.ArrayLike,
-                             on_rate: float) -> npt.ArrayLike:
+                             on_rate: float = 1E-3) -> npt.ArrayLike:
         """
         Returns the fraction of cleaved targets after a specified time
 
@@ -422,7 +426,7 @@ class SearcherTargetComplex(Searcher):
         time: array_like
             Times at which the cleaved fraction is calculated
         on_rate: float
-            Binding rate from solution to the target (in Hz).
+            Rate (Hz) with which the searcher binds the target from solution.
 
         Returns
         -------
@@ -432,7 +436,7 @@ class SearcherTargetComplex(Searcher):
         """
 
         unbound_state = np.concatenate(
-            (np.ones(1), np.zeros(self.guide_length + 2))
+            (np.ones(1), np.zeros(self.on_target_landscape.size + 1))
         )
         prob_distr = self.solve_master_equation(unbound_state, time,
                                                 on_rate)
@@ -440,7 +444,7 @@ class SearcherTargetComplex(Searcher):
         return cleaved_fraction
 
     def get_bound_fraction(self, time: npt.ArrayLike,
-                           on_rate: float) -> npt.ArrayLike:
+                           on_rate: float = 1E-3) -> npt.ArrayLike:
         """
         Returns the fraction of bound targets after a specified time,
         assuming that searcher is catalytically dead/inactive.
@@ -450,7 +454,7 @@ class SearcherTargetComplex(Searcher):
         time: array_like
             Times at which the cleaved fraction is calculated
         on_rate: float
-            Binding rate from solution to the target (in Hz).
+            Rate (Hz) with which the searcher binds the target from solution.
 
         Returns
         -------
@@ -460,12 +464,10 @@ class SearcherTargetComplex(Searcher):
         """
 
         unbound_state = np.concatenate(
-            (np.ones(1), np.zeros(self.guide_length + 2))
+            (np.ones(1), np.zeros(self.on_target_landscape.size + 1))
         )
         # setting up clone SearcherTargetComplex object with zero
         # catalytic activity, k_clv=0
-        dead_forward_rate_dict = self.internal_rates.copy()
-        dead_forward_rate_dict['k_clv'] = 0
         dead_searcher_complex = self.generate_dead_clone()
 
         prob_distr = \
@@ -474,22 +476,21 @@ class SearcherTargetComplex(Searcher):
         bound_fraction = 1 - prob_distr.T[0]
         return bound_fraction
 
-    def plot_off_target_landscape(self, y_lims=None, color='firebrick',
-                                  axs=None, on_rates: list = None,
-                                  **plot_kwargs):
-        """Creates off-target landscape plot"""
-        axs = SearcherPlotter(self).plot_off_target_landscape(
-            self.target_mismatches,
-            y_lims=y_lims, color=color, axs=axs, on_rates=on_rates,
-            **plot_kwargs)
-        return axs
-
-    def get_all_aggregate_rates(self, intermediate_range=(7, 14)):
+    def get_all_aggregate_rates(self, intermediate_range):
         aggr_rates, intermediate_id = (
-            aggregate_landscapes
+            model.aggregate_landscapes
             .get_all_aggregate_rates(self, intermediate_range)
         )
         return aggr_rates
+
+    def plot_off_target_landscape(self, y_lims=None, color='firebrick',
+                                  axs=None, **plot_kwargs):
+        """Creates off-target landscape plot"""
+        axs = SearcherPlotter(self).plot_off_target_landscape(
+            self.target_mismatches,
+            y_lims=y_lims, color=color, axs=axs, **plot_kwargs
+        )
+        return axs
 
 
 def exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
@@ -679,7 +680,7 @@ class SearcherPlotter:
             np.concatenate(
                 (np.zeros(1),  # pam / 1st state
                  searcher.on_target_landscape,
-                 np.zeros(1))  # cleaved state
+                 np.ones(1) * line.axes.get_ylim()[0])
             )
         )
 
@@ -786,7 +787,7 @@ class SearcherPlotter:
             np.concatenate(
                 (np.zeros(1),  # solution state
                  searcher.off_target_landscape,
-                 np.zeros(1))  # cleaved state
+                 np.ones(1) * lines[1].axes.get_ylim()[0])  # cleaved state
             )
         )
 
