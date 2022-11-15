@@ -456,7 +456,7 @@ class SearcherTargetComplex(Searcher):
 
     def get_all_aggregate_rates(self, intermediate_range):
         aggr_rates, intermediate_id = (
-            aggregate_landscapes
+            model.aggregate_landscapes
             .get_all_aggregate_rates(self, intermediate_range)
         )
         return aggr_rates
