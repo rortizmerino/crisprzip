@@ -72,7 +72,7 @@ class TrainingSet:
                  experiment_weights=None,
                  weigh_error=True, rel_error=True,
                  weigh_multiplicity=True,
-                 normalize_weights=True):
+                 normalize_weights=False):
         """
         Constructor method
 
