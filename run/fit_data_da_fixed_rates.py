@@ -22,20 +22,20 @@ def get_root_dir(script_path):
     return root_dir
 
 
-def main(local_search, script_path='./fit_data_da.py', out_path='results/',
+def main(target='E', script_path='./fit_data_da.py', out_path='results/',
          array_id=1):
     # FIT SETTINGS
     dual_annealing_kwargs = {
-        'no_local_search': not bool(local_search),
+        'no_local_search': True,
         'maxiter': 2500,
         'maxfun': 250000,
         # 'maxfun': 25,
     }
 
     # initial vector and bounds
-    initial_param_vector = np.ones(shape=(41,))
-    param_lower_bounds = np.array(21 * [-10] + 20 * [0])
-    param_upper_bounds = np.array(41 * [20])
+    initial_param_vector = np.ones(shape=(43,))
+    param_lower_bounds = np.array(20 * [-10] + 20 * [0] + 3 * [-4])
+    param_upper_bounds = np.array(40 * [20] + 3 * [4])
     param_bounds = np.stack([param_lower_bounds,
                              param_upper_bounds], axis=1)
 
@@ -43,23 +43,27 @@ def main(local_search, script_path='./fit_data_da.py', out_path='results/',
     root_dir = get_root_dir(script_path)
     out_dir = os.path.abspath(out_path)
 
-    # preparing champ and nucleaseq data (ORIGINAL DATASET)
+    # preparing champ and nucleaseq data (MY AGGREGATE DATASET)
     experiments = ['NucleaSeq', 'Champ']
     datasets = []
     for exp in experiments:
-        path = os.path.join(root_dir, f'data/SpCas9/{exp}2020/orig_data.csv')
+        path = os.path.join(root_dir, f'data/SpCas9/{exp}2020/target{target}/'
+                                      f'aggr_data.csv')
         datasets += [read_dataset(path)]
 
     # make training set
     training_set = TrainingSet(datasets, experiments)
 
     # cost function with fixed rates
-    k_on = -4.07
     k_f = 4.
     k_clv = 3.
 
     costfunc = lambda param_vec: training_set.get_cost(
-        np.concatenate((param_vec, np.array([k_on, k_f, k_clv]))),
+        np.concatenate((
+            param_vec[:-2],  # OT landscape + mm penalties + k_off
+            np.array([k_f, k_clv]),  # fixed rates
+            param_vec[-2:]  # k_on for nuseq + champ
+        )),
         multiprocessing=True
     )
 
@@ -69,6 +73,7 @@ def main(local_search, script_path='./fit_data_da.py', out_path='results/',
         x0=initial_param_vector,
         bounds=param_bounds,
         out_path=out_dir,
+        cas9_log=False,
         **dual_annealing_kwargs
     )
 
