@@ -14,7 +14,7 @@ echo
 printf "Synchronizing data, model, run directories... "
 
 # data (w/o data_processing, prepared_experimental, rawdata)
-rsync -r --exclude "data_processing" \
+rsync -r --exclude "data_processing" --delete \
  "${local_root_dir}/data" "${remote}:${remote_root_dir}"
 
 # model (w/o cache)
