@@ -13,9 +13,9 @@ root_dir=$PBS_O_WORKDIR
 cd "${root_dir}" || { echo "Failed to enter ${root_dir}"; exit 1; }
 
 # job directory, e.g. results/20220127_457335 (27 Jan 2022, job id 457335)
-job_dir=$(find results/ -maxdepth 1 -type d -regex ".*${PBS_JOBID:0:6}$")
+job_dir=$(find results/ -maxdepth 1 -type d -regex ".*${PBS_JOBID:0:7}$")
 if [ "$job_dir" = "" ]; then
-  job_dir="results/$(date +'%Y%m%d')_${PBS_JOBID:0:6}"
+  job_dir="results/$(date +'%Y%m%d')_${PBS_JOBID:0:7}"
   mkdir -p "$job_dir";
 fi
 
