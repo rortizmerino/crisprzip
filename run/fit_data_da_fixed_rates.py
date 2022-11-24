@@ -27,9 +27,11 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
     # FIT SETTINGS
     dual_annealing_kwargs = {
         'no_local_search': True,
-        'maxiter': 2500,
+        'maxiter': 1500,
         'maxfun': 250000,
-        # 'maxfun': 25,
+        'initial_temp': 20000,
+        'restart_temp_ratio': 5E-3,
+        'visit': 2.8,
     }
 
     # initial vector and bounds

@@ -14,7 +14,7 @@ def get_root_dir(script_path):
     return root_dir
 
 
-def main(local_search, script_path='./fit_data_da.py', out_path='results/',
+def main(script_path='./fit_data_da.py', out_path='results/',
          array_id=1):
 
     # collecting arguments
