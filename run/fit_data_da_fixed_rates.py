@@ -24,15 +24,20 @@ def get_root_dir(script_path):
 
 def main(target='E', script_path='./fit_data_da.py', out_path='results/',
          array_id=1):
+
     # FIT SETTINGS
     dual_annealing_kwargs = {
         'no_local_search': True,
         'maxiter': 1500,
         'maxfun': 250000,
-        'initial_temp': 20000,
-        'restart_temp_ratio': 5E-3,
+        'initial_temp': 5230,
+        'restart_temp_ratio': 1E-4,
         'visit': 2.8,
     }
+
+    # cost function with fixed rates
+    k_f = 4.
+    k_clv = 3.
 
     # initial vector and bounds
     initial_param_vector = np.ones(shape=(43,))
@@ -55,10 +60,6 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
 
     # make training set
     training_set = TrainingSet(datasets, experiments)
-
-    # cost function with fixed rates
-    k_f = 4.
-    k_clv = 3.
 
     costfunc = lambda param_vec: training_set.get_cost(
         np.concatenate((
