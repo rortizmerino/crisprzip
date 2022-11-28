@@ -1,5 +1,5 @@
 import numpy as np
-import numpy.typing as npt
+from numpy.typing import ArrayLike
 from scipy import linalg
 
 import matplotlib.pyplot as plt
@@ -8,6 +8,19 @@ from matplotlib.lines import Line2D
 import seaborn as sns
 
 import model.aggregate_landscapes
+
+
+class MismatchPattern(np.array):
+    # TODO: change this object into list subclass
+    def __init__(self, array: ArrayLike):
+        assert all([bp in [0, 1] for bp in array])
+        super().__init__(array, dtype='bool')
+
+    def __repr__(self):
+        return "".join(["0" if bp else "1" for bp in self])
+
+    def __str__(self):
+        return self.__repr__()
 
 
 class Searcher:
@@ -44,8 +57,8 @@ class Searcher:
     """
 
     def __init__(self,
-                 on_target_landscape: npt.ArrayLike,
-                 mismatch_penalties: npt.ArrayLike,
+                 on_target_landscape: ArrayLike,
+                 mismatch_penalties: ArrayLike,
                  internal_rates: dict,
                  pam_detection=True):
         """Constructor method"""
@@ -327,7 +340,7 @@ class SearcherTargetComplex(Searcher):
         return rate_matrix
 
     def solve_master_equation(self, initial_condition: np.ndarray,
-                              time: npt.ArrayLike,
+                              time: ArrayLike,
                               on_rate: float,
                               rebinding=True) -> np.ndarray:
 
@@ -416,8 +429,8 @@ class SearcherTargetComplex(Searcher):
         cleavage_probability = 1 / (1 + gamma.cumprod().sum())
         return cleavage_probability
 
-    def get_cleaved_fraction(self, time: npt.ArrayLike,
-                             on_rate: float = 1E-3) -> npt.ArrayLike:
+    def get_cleaved_fraction(self, time: ArrayLike,
+                             on_rate: float = 1E-3) -> ArrayLike:
         """
         Returns the fraction of cleaved targets after a specified time
 
@@ -443,8 +456,8 @@ class SearcherTargetComplex(Searcher):
         cleaved_fraction = prob_distr.T[-1]
         return cleaved_fraction
 
-    def get_bound_fraction(self, time: npt.ArrayLike,
-                           on_rate: float = 1E-3) -> npt.ArrayLike:
+    def get_bound_fraction(self, time: ArrayLike,
+                           on_rate: float = 1E-3) -> ArrayLike:
         """
         Returns the fraction of bound targets after a specified time,
         assuming that searcher is catalytically dead/inactive.
