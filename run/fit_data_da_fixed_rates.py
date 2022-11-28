@@ -28,11 +28,11 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
     # FIT SETTINGS
     dual_annealing_kwargs = {
         'no_local_search': True,
-        'maxiter': 1500,
+        'maxiter': 2000,
         'maxfun': 250000,
         'initial_temp': 5230,
-        'restart_temp_ratio': 1E-4,
-        'visit': 2.8,
+        'restart_temp_ratio': 1E-20,
+        'visit': 2.4,
     }
 
     # cost function with fixed rates
