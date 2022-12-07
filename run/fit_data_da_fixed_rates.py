@@ -25,16 +25,17 @@ def get_root_dir(script_path):
 def main(target='E', script_path='./fit_data_da.py', out_path='results/',
          array_id=1):
 
-    initial_temp = 5230
-
     run_id = (int(array_id) - 1)
-    visit_sweep = [2.3, 2.4, 2.5, 2.6, 2.7, 2.8]
+    temp0_sweep = [10., 30., 100., 300., 1000., 3000.]
 
-    visit = visit_sweep[run_id // 10]
+    visit = 2.6
     print(f"q_visit: {visit:.2f}")
 
     maxiter = 2500
     print(f"maxiter: {maxiter:d}")
+
+    initial_temp = temp0_sweep[run_id]
+    print(f"initl temp: {initial_temp:.1f}")
 
     final_temp = initial_temp * (2.**(visit-1)-1)/((2.+maxiter)**(visit-1)-1)
     print(f"final temp: {final_temp:.2e}")
