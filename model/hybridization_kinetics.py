@@ -37,8 +37,12 @@ class MismatchPattern(np.ndarray):
     """
     def __new__(cls, array: np.ndarray):
 
-        assert array.ndim == 1
-        assert np.all((array == 0) | (array == 1))
+        if array.ndim == 1:
+            raise ValueError('Array should be 1-dimensional')
+        if not (np.all((array == 0) | (array == 1)) or
+                np.all((array is False) | (array is True)) or
+                np.all((np.isclose(array, 0.0)) | (np.isclose(array, 0.0)))):
+            raise ValueError('Array should only contain 0 and 1 values')
 
         obj = np.asarray(array, dtype='bool').view(cls)
         obj.mm_num = obj.sum()
