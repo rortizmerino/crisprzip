@@ -10,17 +10,64 @@ import seaborn as sns
 import model.aggregate_landscapes
 
 
-class MismatchPattern(np.array):
-    # TODO: change this object into list subclass
-    def __init__(self, array: ArrayLike):
-        assert all([bp in [0, 1] for bp in array])
-        super().__init__(array, dtype='bool')
+class MismatchPattern(np.ndarray):
+    """A NumPy subclass indicating the positions of the mismatched
+    bases in a target sequence.
+    Note that subclassing ndarray is not as straightforward as
+    subclassing other Python objects. Consult the NumPy
+    documentation [1] before editing.
+
+    Attributes
+    ----------
+    mm_num: int
+        Number of mismatches in the array
+    is_on_target: bool
+        Indicates whether the array is the on-target array
+
+    Methods
+    -------
+    from_mm_pos(guide_length[, mm_pos_list])
+        Alternative constructor, based on mismatch positions
+    get_mm_pos()
+        Gives positions of the mismatches
+
+    References
+    ----------
+    [1] https://numpy.org/doc/stable/user/basics.subclassing.html
+    """
+    def __new__(cls, array: np.ndarray):
+
+        assert array.ndim == 1
+        assert np.all((array == 0) | (array == 1))
+
+        obj = np.asarray(array, dtype='bool').view(cls)
+        obj.mm_num = obj.sum()
+        obj.is_on_target = obj.mm_num == 0
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None: return
+        self.mm_num = getattr(obj, 'mm_num', None)
+        self.is_on_target = getattr(obj, 'is_on_target', None)
+
+    def sum(self, *args, **kwargs):
+        return int(self.view(np.ndarray).sum(*args, **kwargs))
 
     def __repr__(self):
-        return "".join(["0" if bp else "1" for bp in self])
+        return "".join(["1" if mm else "0" for mm in self])
 
     def __str__(self):
         return self.__repr__()
+
+    @classmethod
+    def from_mm_pos(cls, guide_length: int, mm_pos_list: list = None):
+        """Alternative constructor method"""
+        array = np.zeros(guide_length)
+        if mm_pos_list is not None: array[mm_pos_list] = 1
+        return cls(array)
+
+    def get_mm_pos(self):
+        return [i for i, mm in enumerate(self) if mm]
 
 
 class Searcher:
