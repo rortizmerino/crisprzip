@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.special import factorial
 from joblib import Parallel, delayed
 
-from model.experiment_simulations import NucleaSeq, Champ
+from model.experiment_simulations import NucleaseqSimulation, ChampSimulation
 
 
 def read_dataset(file):
@@ -65,8 +65,8 @@ class TrainingSet:
         data
     """
 
-    experiment_map = {'nucleaseq': NucleaSeq,
-                      'champ': Champ}
+    experiment_map = {'nucleaseq': NucleaseqSimulation,
+                      'champ': ChampSimulation}
 
     def __init__(self, datasets: list, experiment_names: list,
                  experiment_weights=None,
