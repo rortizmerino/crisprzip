@@ -34,7 +34,7 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
     maxiter = 2500
     print(f"maxiter: {maxiter:d}")
 
-    initial_temp = temp0_sweep[run_id]
+    initial_temp = temp0_sweep[run_id//10]
     print(f"initl temp: {initial_temp:.1f}")
 
     final_temp = initial_temp * (2.**(visit-1)-1)/((2.+maxiter)**(visit-1)-1)
