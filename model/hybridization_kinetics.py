@@ -37,7 +37,7 @@ class MismatchPattern(np.ndarray):
     """
     def __new__(cls, array: np.ndarray):
 
-        if array.ndim == 1:
+        if array.ndim != 1:
             raise ValueError('Array should be 1-dimensional')
         if not (np.all((array == 0) | (array == 1)) or
                 np.all((array is False) | (array is True)) or

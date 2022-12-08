@@ -11,3 +11,4 @@ results
 data/data_processing/old
 data/rawdata
 run/vid_data
+.pytest_cache
