@@ -1,7 +1,9 @@
+from typing import Union
+
 import numpy as np
+from numpy.random import Generator, default_rng
 from numpy.typing import ArrayLike
 from scipy import linalg
-
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
@@ -71,6 +73,16 @@ class MismatchPattern(np.ndarray):
         if mm_pos_list is not None:
             array[mm_pos_list] = 1
         return cls(array)
+
+    @classmethod
+    def make_random(cls, guide_length: int, mm_num: int,
+                    rng: Union[int, Generator] = None):
+        if type(rng) is int or rng is None:
+            rng = default_rng(rng)
+        target = np.zeros(guide_length)
+        mm_pos = rng.choice(range(20), size=mm_num, replace=False).tolist()
+        target[mm_pos] = 1
+        return cls(target)
 
     def get_mm_pos(self):
         return [i for i, mm in enumerate(self) if mm]
@@ -147,43 +159,6 @@ class Searcher:
         self.internal_rates = internal_rates
         # self.forward_rate_array = self.__get_forward_rate_array()
 
-    @classmethod
-    def from_param_vector(cls, param_vector,
-                          guide_length=20, pam_sensing=True):
-        """
-        Generates Searcher object on the basis of a parameter vector
-        with the following entries:
-
-        0 -  N-1  : on-target hybridization landscape [kBT] - length N
-                    (does not include PAM energy)
-        N - 2N-1  : mismatch penalties [kBT]                - length N
-            2N    : log10( k_off [Hz] )
-            2N+1  : log10( k_f [Hz] )
-            2N+2  : log10( k_clv [Hz] )
-
-        The remaining entries in the parameter vector (>2N+2) are
-        ignored; these should correspond to the context-dependent
-        parameters.
-
-        If the searcher is PAM-insensitive, the hybridization landscape
-        has length N-1, making the total parameter vector smaller by
-        a length of 1.
-        """
-
-        # the index between landscape & mismatch penalties
-        separator = guide_length + pam_sensing - 1
-
-        return cls(
-            on_target_landscape=param_vector[:separator],
-            mismatch_penalties=param_vector[separator:separator+guide_length],
-            internal_rates={
-                'k_off': 10 ** param_vector[separator+guide_length],
-                'k_f': 10 ** param_vector[separator+guide_length+1],
-                'k_clv': 10 ** param_vector[separator+guide_length+2]
-            },
-            pam_detection=pam_sensing
-        )
-
     def get_forward_rate_array(self, k_on):
         """Turns the forward rate dictionary into proper array"""
         forward_rate_array = np.concatenate(
@@ -210,7 +185,7 @@ class Searcher:
         )
         return dead_searcher
 
-    def probe_target(self, target_mismatches: np.array):
+    def probe_target(self, target_mismatches: MismatchPattern):
         """Returns SearcherTargetComplex object"""
         return SearcherTargetComplex(self.on_target_landscape,
                                      self.mismatch_penalties,
@@ -307,7 +282,7 @@ class SearcherTargetComplex(Searcher):
 
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, internal_rates: dict,
-                 target_mismatches: np.ndarray):
+                 target_mismatches: MismatchPattern):
         Searcher.__init__(self, on_target_landscape, mismatch_penalties,
                           internal_rates)
 
@@ -329,8 +304,10 @@ class SearcherTargetComplex(Searcher):
 
     def __get_off_target_landscape(self):
         """Adds penalties due to mismatches to landscape"""
-        landscape_penalties = np.cumsum(self.target_mismatches *
-                                        self.mismatch_penalties)
+        landscape_penalties = np.cumsum(
+            self.target_mismatches.view(np.ndarray) *
+            self.mismatch_penalties
+        )
         if self.pam_detection:
             off_target_landscape = (self.on_target_landscape +
                                     landscape_penalties)
