@@ -35,8 +35,8 @@ class MismatchPattern(np.ndarray):
     ----------
     [1] https://numpy.org/doc/stable/user/basics.subclassing.html
     """
-    def __new__(cls, array: np.ndarray):
-
+    def __new__(cls, array: np.typing.ArrayLike, *args, **kwargs):
+        array = np.array(array, *args, **kwargs)
         if array.ndim != 1:
             raise ValueError('Array should be 1-dimensional')
         if not (np.all((array == 0) | (array == 1)) or
@@ -50,7 +50,8 @@ class MismatchPattern(np.ndarray):
         return obj
 
     def __array_finalize__(self, obj):
-        if obj is None: return
+        if obj is None:
+            return None
         self.mm_num = getattr(obj, 'mm_num', None)
         self.is_on_target = getattr(obj, 'is_on_target', None)
 
@@ -67,7 +68,8 @@ class MismatchPattern(np.ndarray):
     def from_mm_pos(cls, guide_length: int, mm_pos_list: list = None):
         """Alternative constructor method"""
         array = np.zeros(guide_length)
-        if mm_pos_list is not None: array[mm_pos_list] = 1
+        if mm_pos_list is not None:
+            array[mm_pos_list] = 1
         return cls(array)
 
     def get_mm_pos(self):
