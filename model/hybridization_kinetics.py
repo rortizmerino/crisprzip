@@ -67,8 +67,12 @@ class MismatchPattern(np.ndarray):
         return self.__repr__()
 
     @classmethod
+    def from_string(cls, mm_array_string):
+        return cls([int(bp) for bp in mm_array_string])
+
+    @classmethod
     def from_mm_pos(cls, guide_length: int, mm_pos_list: list = None):
-        """Alternative constructor method"""
+        """Alternative constructor"""
         array = np.zeros(guide_length)
         if mm_pos_list is not None:
             array[mm_pos_list] = 1
