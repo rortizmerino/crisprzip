@@ -12,15 +12,16 @@ import seaborn as sns
 import model.aggregate_landscapes
 
 
-class MismatchPattern(np.ndarray):
-    """A NumPy subclass indicating the positions of the mismatched
+class MismatchPattern:
+    """A class indicating the positions of the mismatched
     bases in a target sequence.
-    Note that subclassing ndarray is not as straightforward as
-    subclassing other Python objects. Consult the NumPy
-    documentation [1] before editing.
 
     Attributes
     ----------
+    pattern: np.ndarray
+        Array with True indicating mismatched basepairs
+    length: int
+        Guide length
     mm_num: int
         Number of mismatches in the array
     is_on_target: bool
@@ -28,17 +29,18 @@ class MismatchPattern(np.ndarray):
 
     Methods
     -------
+    from_string(mm_array_string)
+        Alternative constructor, reading strings
     from_mm_pos(guide_length[, mm_pos_list])
         Alternative constructor, based on mismatch positions
+    make_random(guide_length, mm_num[, rng])
+        Create mismatch array with randomly positioned mismatches
     get_mm_pos()
         Gives positions of the mismatches
 
-    References
-    ----------
-    [1] https://numpy.org/doc/stable/user/basics.subclassing.html
     """
-    def __new__(cls, array: np.typing.ArrayLike, *args, **kwargs):
-        array = np.array(array, *args, **kwargs)
+    def __init__(self, array: np.typing.ArrayLike):
+        array = np.array(array)
         if array.ndim != 1:
             raise ValueError('Array should be 1-dimensional')
         if not (np.all((array == 0) | (array == 1)) or
@@ -46,29 +48,20 @@ class MismatchPattern(np.ndarray):
                 np.all((np.isclose(array, 0.0)) | (np.isclose(array, 0.0)))):
             raise ValueError('Array should only contain 0 and 1 values')
 
-        obj = np.asarray(array, dtype='bool').view(cls)
-        obj.mm_num = obj.sum()
-        obj.is_on_target = obj.mm_num == 0
-        return obj
-
-    def __array_finalize__(self, obj):
-        if obj is None:
-            return None
-        self.mm_num = getattr(obj, 'mm_num', None)
-        self.is_on_target = getattr(obj, 'is_on_target', None)
-
-    def sum(self, *args, **kwargs):
-        return int(self.view(np.ndarray).sum(*args, **kwargs))
+        self.pattern = np.asarray(array, dtype='bool')
+        self.length = self.pattern.size
+        self.mm_num = int(np.sum(self.pattern))
+        self.is_on_target = self.mm_num == 0
 
     def __repr__(self):
-        return "".join(["1" if mm else "0" for mm in self])
+        return "".join(["1" if mm else "0" for mm in self.pattern])
 
     def __str__(self):
         return self.__repr__()
 
     @classmethod
     def from_string(cls, mm_array_string):
-        return cls([int(bp) for bp in mm_array_string])
+        return cls(np.array(list(mm_array_string), dtype='int'))
 
     @classmethod
     def from_mm_pos(cls, guide_length: int, mm_pos_list: list = None):
@@ -89,7 +82,7 @@ class MismatchPattern(np.ndarray):
         return cls(target)
 
     def get_mm_pos(self):
-        return [i for i, mm in enumerate(self) if mm]
+        return [i for i, mm in enumerate(self.pattern) if mm]
 
 
 class Searcher:
@@ -291,7 +284,7 @@ class SearcherTargetComplex(Searcher):
                           internal_rates)
 
         # check dimensions of mismatch position array
-        if target_mismatches.size != self.guide_length:
+        if target_mismatches.length != self.guide_length:
             raise ValueError('Target array should be of same length as guide')
         else:
             self.target_mismatches = target_mismatches
@@ -309,7 +302,7 @@ class SearcherTargetComplex(Searcher):
     def __get_off_target_landscape(self):
         """Adds penalties due to mismatches to landscape"""
         landscape_penalties = np.cumsum(
-            self.target_mismatches.view(np.ndarray) *
+            self.target_mismatches.pattern *
             self.mismatch_penalties
         )
         if self.pam_detection:
@@ -336,7 +329,8 @@ class SearcherTargetComplex(Searcher):
             # add potential penalty on the first state (= not PAM)
             hybrid_landscape = np.concatenate((
                 np.array([
-                    self.target_mismatches[0] * self.mismatch_penalties[0]
+                    (self.target_mismatches.pattern[0] *
+                     self.mismatch_penalties[0])
                 ]),
                 self.off_target_landscape
             ))
