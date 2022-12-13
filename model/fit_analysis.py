@@ -13,8 +13,10 @@ import seaborn as sns
 from matplotlib.offsetbox import AnchoredText
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+from model.data import ExperimentType
 from model.hybridization_kinetics import Searcher, SearcherPlotter
 from model.training_set import TrainingSet
+import model.parameter_vector
 
 
 class LogAnalyzer:
@@ -56,11 +58,13 @@ class LogAnalyzer:
         'fps': 15  # frames per second
     }
 
-    def __init__(self, log_file):
+    def __init__(self, log_file, pvec_type: str):
         self.log_file = log_file
 
         self.log_dataframe = self.read_log_file()
         self.total_steps = self.get_total_steps()
+        self.pvec_type = pvec_type
+        self.pvec_series = self.make_pvec_series(pvec_type)
         self.log_searchers = self.make_searcher_series()
 
         self.exit_message = self.get_exit_message()
@@ -159,14 +163,25 @@ class LogAnalyzer:
         rates_lims = tuple([10 ** val for val in rates_lims])  # log axs
         return landscape_lims, mismatch_lims, rates_lims
 
+    def make_pvec_series(self, pvec_type: str):
+        """Creates a Searcher instance for each parameter vector,
+        returns them in a Series"""
+        landscape_np = self.log_dataframe.to_numpy(dtype='float32')[:, 4:]
+        pvec_series = pd.Series(dtype=object)
+        for i in range(landscape_np.shape[0]):
+            param_vector = landscape_np[i]
+            pvec_series.loc[i] = (
+                getattr(model.parameter_vector, pvec_type)(param_vector)
+            )
+        return pvec_series
+
     def make_searcher_series(self):
         """Creates a Searcher instance for each parameter vector,
         returns them in a Series"""
         landscape_df = self.log_dataframe
-        searcher_series = pd.Series(dtype=object)
-        for i in landscape_df.index:
-            param_vector = landscape_df.iloc[:, 4:].loc[i].to_numpy()
-            searcher_series.loc[i] = Searcher.from_param_vector(param_vector)
+        searcher_series = pd.Series(
+            [pvec.to_searcher() for pvec in self.pvec_series.to_list()]
+        )
         return searcher_series
 
     def get_lowest_cost(self) -> np.ndarray:
@@ -213,17 +228,20 @@ class LogAnalyzer:
     @staticmethod
     def prepare_opt_path_lines(axs, color='cornflowerblue', **plot_kwargs):
         """Adds styled lines to the optimization path canvas"""
+
+        zorder_ref = plot_kwargs.pop("zorder", 2.)
+
         # colored, left-side line
         past_line, = axs.plot([], [], color=color,
-                              linewidth=1, zorder=2, **plot_kwargs)
+                              linewidth=1, zorder=zorder_ref, **plot_kwargs)
         # colored, dot at current opt point
         current_line, = axs.plot([], [], color=color,
-                                 linestyle='', zorder=2,
+                                 linestyle='', zorder=zorder_ref,
                                  marker='.', markersize=12,
                                  **plot_kwargs)
         # gray, right-side line
         future_line, = axs.plot([], [], color='darkgray', linewidth=1,
-                                zorder=1.9,
+                                zorder=zorder_ref-1,
                                 **plot_kwargs)
 
         lines = [past_line, current_line, future_line]
@@ -285,9 +303,14 @@ class LogAnalyzer:
                                             title='Mismatch penalties',
                                             axs=axs[1]))
         axs[2] = (SearcherPlotter(initial_searcher)
-                  .prepare_rates_canvas(self.rates_lims,
-                                        title='Forward rates',
-                                        axs=axs[2]))
+                  .prepare_rates_canvas(
+            self.rates_lims,
+            title='Forward rates',
+            axs=axs[2],
+            extra_rates={
+                r'$k_{on}^{NuSeq}$': 1.,
+                r'$k_{on}^{Champ}$': 1.
+            }))
         axs[3] = self.prepare_opt_path_canvas(x_lims=None, y_lims=None,
                                               title='Optimization path',
                                               axs=axs[3])
@@ -323,7 +346,14 @@ class LogAnalyzer:
             plotter = SearcherPlotter(self.log_searchers[j])
             plotter.update_on_target_landscape(lines[0])
             plotter.update_mismatches(lines[1])
-            plotter.update_rates(lines[2])
+            plotter.update_rates(lines[2], extra_rates={
+                r'$k_{on}^{NuSeq}$': self.pvec_series[j].to_binding_rate(
+                    ExperimentType.NUCLEASEQ
+                ),
+                r'$k_{on}^{Champ}$': self.pvec_series[j].to_binding_rate(
+                    ExperimentType.CHAMP
+                )
+            })
 
     def plot_final_log_dashboard(self, color):
         """Creates full log dashboard, with the result and the
@@ -331,12 +361,20 @@ class LogAnalyzer:
         fig, axs = self.prepare_log_dashboard_canvas()
         lines = self.prepare_log_dashboard_line(axs, color=color)
 
+        best_pvec = type(self.pvec_series[0])(self.final_result)
         plotter = SearcherPlotter(
-            Searcher.from_param_vector(self.final_result)
+            best_pvec.to_searcher()
         )
         plotter.update_on_target_landscape(lines[0])
         plotter.update_mismatches(lines[1])
-        plotter.update_rates(lines[2])
+        plotter.update_rates(lines[2], extra_rates={
+            r'$k_{on}^{NuSeq}$': best_pvec.to_binding_rate(
+                ExperimentType.NUCLEASEQ
+            ),
+            r'$k_{on}^{Champ}$': best_pvec.to_binding_rate(
+                ExperimentType.CHAMP
+            )
+        })
         self.update_partial_opt_path(lines[3:6], self.total_steps - 1)
 
         lines[4].set_data([], [])
@@ -345,312 +383,8 @@ class LogAnalyzer:
         return fig, axs, lines
 
     def make_dashboard_video(self):
-        video = DashboardVideo([self.log_file]).make_video()
+        video = DashboardVideo([self.log_file], self.pvec_type).make_video()
         return video
-
-    def compare_to_data(self, training_set: TrainingSet):
-        data = training_set.data
-        training_set.run_all_simulations(self.final_result,
-                                         multiprocessing=False)
-        data['simulation'] = training_set.simulated_values
-        return data
-
-    @staticmethod
-    def plot_on_target_fit(data_df, experiment_name,
-                           color=None, axs=None):
-        ylabel = ''
-        if color is None:
-            if experiment_name.lower() == 'nucleaseq':
-                color = 'orange'
-                ylabel = r'$k_{clv} ($s$^{-1})$'
-            elif experiment_name.lower() == 'champ':
-                color = 'tab:blue'
-                ylabel = r'$K_A ($nM$^{-1})$'
-            else:
-                color = 'tab:blue'
-
-        df_subset = data_df.loc[
-            (data_df.mismatch_number == 0) &
-            (data_df.experiment_name == experiment_name),
-            ['value', 'error', 'weight', 'simulation']
-        ]
-
-        if axs is None:
-            _, axs = plt.subplots(1, 1)
-
-        axs.plot([1], df_subset['value'],
-                 '.', color=color, alpha=.7, markersize=10,
-                 label='data')
-        axs.plot([1], df_subset['simulation'],
-                 'x', color=color, alpha=.7, markersize=8, label='model')
-
-        # window dressing
-        axs.set_xticks([1])
-        axs.set_xticklabels(['on-target'])
-        axs.set_yscale('log')
-        axs.set_ylabel(ylabel, **SearcherPlotter.label_style)
-        axs.legend(loc='lower right')
-
-        partial_cost = (np.sum(df_subset['weight'] *
-                               np.log10(df_subset['simulation'] /
-                                        df_subset['value']) ** 2))
-        axs.set_title(f'on-target cost: {partial_cost:.2e}', pad=18)
-
-        return axs
-
-    @staticmethod
-    def plot_single_mm_fit(data_df, experiment_name,
-                           color=None, axs=None):
-        ylabel = ''
-        if color is None:
-            if experiment_name.lower() == 'nucleaseq':
-                color = 'orange'
-                ylabel = r'$k_{clv} ($s$^{-1})$'
-            elif experiment_name.lower() == 'champ':
-                color = 'tab:blue'
-                ylabel = r'$K_A ($nM$^{-1})$'
-            else:
-                color = 'tab:blue'
-
-        df_subset = data_df.loc[
-            (data_df.mismatch_number == 1) &
-            (data_df.experiment_name == experiment_name),
-            ['value', 'error', 'weight', 'simulation']
-        ]
-
-        if axs is None:
-            _, axs = plt.subplots(1, 1)
-
-        axs.plot(np.arange(1, 21), df_subset['value'], '.',
-                 color=color, alpha=.7, markersize=10,
-                 label='data')
-        axs.plot(np.arange(1, 21), df_subset['simulation'],
-                 '-', color=color, alpha=.7, linewidth=1.5, label='model')
-
-        # window dressing
-        axs.set_xticks(np.arange(1, 21))
-        axs.set_xticks(np.arange(1, 21))
-        axs.set_xticklabels(['1'] + 3 * [''] + ['5'] + 4 * [''] +
-                            ['10'] + 4 * [''] + ['15'] + 4 * [''] + ['20'])
-        axs.set_xlabel(r'mismatch position $b$', **SearcherPlotter.label_style)
-        axs.set_yscale('log')
-        axs.set_ylabel(ylabel, **SearcherPlotter.label_style)
-        axs.legend(loc='lower right')
-
-        partial_cost = (np.sum(df_subset['weight'] *
-                               np.log10(df_subset['simulation'] /
-                                        df_subset['value']) ** 2))
-        axs.set_title(f'single mm cost: {partial_cost:.2e}', pad=18)
-
-        return axs
-
-    @staticmethod
-    def plot_double_mm_fit(data_df, experiment_name,
-                           cmap=None, axs=None):
-
-        if experiment_name.lower() == 'nucleaseq':
-            cmap = 'Oranges' if cmap is None else cmap
-            zlabel = r'$k_{clv} ($s$^{-1})$'
-        elif experiment_name.lower() == 'champ':
-            cmap = 'Blues' if cmap is None else cmap
-            zlabel = r'$K_A ($nM$^{-1})$'
-        else:
-            cmap = 'Blues' if cmap is None else cmap
-            zlabel = ''
-
-        df_subset = data_df.loc[
-            (data_df.mismatch_number == 2) &
-            (data_df.experiment_name == experiment_name),
-            ['mismatch_array', 'value', 'error', 'weight', 'simulation']
-        ]
-
-        def mismatch_array_to_coordinates(mm_array):
-            b1 = mm_array.index('1')
-            b2 = b1 + 1 + mm_array[b1 + 1:].index('1')
-            return b1, b2
-
-        show_matrix = np.zeros(shape=(20, 20))
-        for row in df_subset.iterrows():
-            x, y = mismatch_array_to_coordinates(row[1]['mismatch_array'])
-            show_matrix[y, x] = row[1]['value']
-            show_matrix[x, y] = row[1]['simulation']
-
-        if axs is None:
-            _, axs = plt.subplots(1, 1)
-
-        im = axs.imshow(show_matrix, cmap=cmap, norm=colors.LogNorm(),
-                        origin='lower')
-
-        label1 = AnchoredText('  data', frameon=False, pad=-0.5,
-                              loc='lower left', bbox_to_anchor=(0., 1.),
-                              bbox_transform=axs.transAxes,
-                              prop={'size': 10,
-                                    'horizontalalignment': 'left'})
-        label2 = AnchoredText('model  ', frameon=False, pad=-0.5,
-                              loc='lower left', bbox_to_anchor=(1., 0.),
-                              bbox_transform=axs.transAxes,
-                              prop={'size': 10,
-                                    'horizontalalignment': 'right',
-                                    'rotation': 270.})
-        axs.add_artist(label1)
-        axs.add_artist(label2)
-
-        divider = make_axes_locatable(axs)
-        cax = divider.append_axes("right", size="5%", pad=0.25)
-        bar = plt.colorbar(im, cax=cax)
-        cax.set_title(zlabel, **SearcherPlotter.label_style)
-
-        # window dressing
-        axs.set_xlabel(r'mismatch 1 position $b_1$',
-                       **SearcherPlotter.label_style)
-        axs.set_xticks(np.arange(0, 20))
-        axs.set_xticklabels(['1'] + 3 * [''] + ['5'] + 4 * [''] +
-                            ['10'] + 4 * [''] + ['15'] + 4 * [''] + ['20'])
-
-        axs.set_ylabel(r'mismatch 2 position $b_2$',
-                       **SearcherPlotter.label_style)
-        axs.set_yticks(np.arange(0, 20))
-        axs.set_yticklabels(['1'] + 3 * [''] + ['5'] + 4 * [''] +
-                            ['10'] + 4 * [''] + ['15'] + 4 * [''] + ['20'])
-
-        partial_cost = (np.sum(df_subset['weight'] *
-                               np.log10(df_subset['simulation'] /
-                                        df_subset['value']) ** 2))
-        axs.set_title(f'double mm cost: {partial_cost:.2e}', pad=18)
-
-        return axs, cax
-
-    @staticmethod
-    def plot_fit_correlation(data_df, experiment_name,
-                             color=None, axs=None):
-        ylabel = ''
-        if color is None:
-            if experiment_name.lower() == 'nucleaseq':
-                color = 'orange'
-                ylabel = r'$k_{clv} ($s$^{-1})$'
-            elif experiment_name.lower() == 'champ':
-                color = 'tab:blue'
-                ylabel = r'$K_A ($nM$^{-1})$'
-            else:
-                color = 'tab:blue'
-
-        df_subset = data_df.loc[
-            (data_df.experiment_name == experiment_name),
-            ['mismatch_number', 'value', 'error', 'simulation']
-        ]
-
-        if axs is None:
-            _, axs = plt.subplots(1, 1)
-
-        axs.scatter(
-            df_subset.loc[df_subset.mismatch_number == 0, 'value'],
-            df_subset.loc[df_subset.mismatch_number == 0, 'simulation'],
-            marker='o', facecolor='none', edgecolor=color, alpha=0.7,
-            s=24, label='on-target'
-        )
-        axs.scatter(
-            df_subset.loc[df_subset.mismatch_number == 1, 'value'],
-            df_subset.loc[df_subset.mismatch_number == 1, 'simulation'],
-            marker='s', facecolor='none', edgecolor=color, alpha=0.7,
-            s=24, label='off-target, 1 mm'
-        )
-        axs.scatter(
-            df_subset.loc[df_subset.mismatch_number == 2, 'value'],
-            df_subset.loc[df_subset.mismatch_number == 2, 'simulation'],
-            marker='^', facecolor='none', edgecolor=color, alpha=0.7,
-            s=24, label='off-target, 2 mm'
-        )
-
-        # window dressing
-        axs.set_xscale('log')
-        axs.set_xlabel('data - ' + ylabel, **SearcherPlotter.label_style)
-        axs.set_yscale('log')
-        axs.set_ylabel('model - ' + ylabel, **SearcherPlotter.label_style)
-
-        # limits
-        axs.set_aspect('equal', adjustable='box')
-        minlim = min(axs.get_xlim()[0], axs.get_ylim()[0])
-        extramaxlim = .11 if experiment_name == 'Champ' else 0.
-        maxlim = max(axs.get_xlim()[1], axs.get_ylim()[1], extramaxlim)
-        axs.set_xlim(minlim, maxlim)
-        axs.set_ylim(minlim, maxlim)
-        axs.plot([minlim, maxlim], [minlim, maxlim], '--k',
-                 linewidth=1, zorder=0)
-        axs.minorticks_on()
-
-        # ticks
-        ticks = 10. ** np.arange(np.ceil(np.log10(minlim)),
-                                 np.ceil(np.log10(maxlim)),
-                                 1)
-        axs.set_xticks(ticks)
-        axs.set_yticks(ticks)
-
-        axs.legend(loc='upper left', handlelength=1.)
-
-        try:
-            correlation, _ = pearsonr(np.log10(df_subset['value']),
-                                      np.log10(df_subset['simulation']))
-            axs.set_title('correlation: %.2f' % correlation, pad=18)
-        except ValueError:
-            axs.set_title('correlation unknown', pad=18)
-
-        return axs
-
-    def make_fit_dashboard(self, training_set,
-                           experiment_names: Union[str, list]):
-        data_df = self.compare_to_data(training_set)
-
-        if type(experiment_names) == str:
-            experiment_names = [experiment_names]
-
-        fig = plt.figure(
-            figsize=(14, 7.5),
-            constrained_layout=True,
-        )
-        grid = fig.add_gridspec(ncols=4, nrows=2*len(experiment_names),
-                                width_ratios=[.45, 1, 1.12, 1],
-                                height_ratios=(len(experiment_names) *
-                                               [.1, 1]),
-                                hspace=.02, wspace=.08)
-
-        title_axs = []
-        axs = []
-        for i in range(len(experiment_names)):
-
-            title_axs += [fig.add_subplot(grid[2*i, :])]
-            title_axs[-1].set_axis_off()
-            title_axs[-1].text(.5, .5, experiment_names[i],
-                               horizontalalignment='center',
-                               fontsize=14,
-                               **SearcherPlotter.title_style)
-
-            axs += [
-                fig.add_subplot(grid[2*i+1, 0]),
-                fig.add_subplot(grid[2*i+1, 1]),
-                fig.add_subplot(grid[2*i+1, 2]),
-                fig.add_subplot(grid[2*i+1, 3])
-            ]
-
-            axs[4 * i] = self.plot_on_target_fit(data_df,
-                                                 experiment_names[i],
-                                                 axs=axs[4 * i])
-            axs[4 * i + 1] = self.plot_single_mm_fit(data_df,
-                                                     experiment_names[i],
-                                                     axs=axs[4 * i + 1])
-            axs[4 * i + 2] = self.plot_double_mm_fit(data_df,
-                                                     experiment_names[i],
-                                                     axs=axs[4 * i + 2])
-            axs[4 * i + 3] = self.plot_fit_correlation(data_df,
-                                                       experiment_names[i],
-                                                       axs=axs[4 * i + 3])
-
-            # adjust on-target scale to 1 mm scale
-            axs[4 * i].set_ylim(axs[4 * i + 1].get_ylim())
-            # # remove labels from 1 mm scale\
-            # axs[4 * i + 1].set_yticklabels([])
-            # axs[4 * i + 1].set_ylabel('')
-
-        return fig, axs
 
 
 class DashboardVideo:
@@ -671,7 +405,7 @@ class DashboardVideo:
         Saves animation as .mp4-file (this takes quite long).
 
     """
-    default_color_list = ['#5dd39e', '#348aa7']  # blues/greens
+    default_cmap = plt.get_cmap("viridis")
     # what about ['#6495ED', '#9CD08F'] ?
 
     default_alpha = .55
@@ -680,10 +414,11 @@ class DashboardVideo:
 
     # might want to write out the dpi and fps here
 
-    def __init__(self, log_files: list):
+    def __init__(self, log_files: list, pvec_type):
         self.log_files = log_files
 
-        self.analyzers = [LogAnalyzer(filename) for filename in log_files]
+        self.analyzers = [LogAnalyzer(filename, pvec_type)
+                          for filename in log_files]
         self.analyzers.sort(key=lambda analyzer: analyzer.final_cost)
 
         self.total_step_no = max(a.total_steps for a in self.analyzers)
@@ -734,8 +469,9 @@ class DashboardVideo:
     @classmethod
     def get_color_list(cls, length: int, colors: list = None):
         if colors is None:
-            colors = cls.default_color_list
-        cmap = cls.make_color_map(colors)
+            cmap = cls.default_cmap
+        else:
+            cmap = cls.make_color_map(colors)
         color_list = [to_hex(cmap(x))
                       for x in np.linspace(0, 1, length)]
         return color_list
@@ -847,9 +583,9 @@ class RunAnalyzer:
 
     dashboard_specs = LogAnalyzer.dashboard_specs
     default_alpha = DashboardVideo.default_alpha
-    default_color_list = DashboardVideo.default_color_list
+    # default_color_list = DashboardVideo.default_color_list
 
-    def __init__(self, job_dirs: Union[list, str]):
+    def __init__(self, job_dirs: Union[list, str], pvec_type: str):
         """
         Constructor
 
@@ -866,6 +602,7 @@ class RunAnalyzer:
         self.run_ids = []
         self.analyzers = []
         self.log_list = []
+        self.pvec_type = pvec_type
 
         if type(job_dirs) == str:
             job_dirs = [job_dirs]
@@ -876,7 +613,8 @@ class RunAnalyzer:
                     self.job_ids += [path[-15:]]
                     self.run_ids += [int(root[-3:])]
                     self.analyzers += [
-                        LogAnalyzer(os.path.join(root, 'log.txt'))]
+                        LogAnalyzer(os.path.join(root, 'log.txt'),
+                                    pvec_type)]
                     self.log_list += [os.path.join(root, 'log.txt')]
 
         self.run_no = len(self.analyzers)
@@ -924,7 +662,8 @@ class RunAnalyzer:
             lines += sorted_analyzers[k].prepare_log_dashboard_line(
                 axs,
                 color=color_list[k],
-                **{'alpha': self.default_alpha}
+                **{'alpha': self.default_alpha,
+                   'zorder': 2+(1-k/top)}
             )
 
             sorted_analyzers[k].update_log_dashboard_line(
@@ -995,7 +734,7 @@ class RunAnalyzer:
         else:
             log_list = self.log_list
 
-        videomaker = DashboardVideo(log_list)
+        videomaker = DashboardVideo(log_list, self.pvec_type)
 
         if fps is None:
             fps = DashboardVideo.dashboard_specs['fps']
