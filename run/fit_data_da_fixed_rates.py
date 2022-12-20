@@ -25,13 +25,13 @@ def get_root_dir(script_path):
 def main(target='E', script_path='./fit_data_da.py', out_path='results/',
          array_id=1):
 
-    visit = 2.6
+    visit = 2.62
     print(f"q_visit: {visit:.2f}")
 
-    maxiter = 3000
+    maxiter = 2000
     print(f"maxiter: {maxiter:d}")
 
-    initial_temp = 100.
+    initial_temp = 300.
     print(f"initl temp: {initial_temp:.1f}")
 
     final_temp = initial_temp * (2.**(visit-1)-1)/((2.+maxiter)**(visit-1)-1)
@@ -47,14 +47,21 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
         'visit': visit,
     }
 
-    # cost function with fixed rates
-    k_f = 4.
-    k_clv = 3.
+    # cost function with free rates
+    # k_f = 4.
+    # k_clv = 3.
 
     # initial vector and bounds
-    initial_param_vector = np.ones(shape=(43,))
-    param_lower_bounds = np.array(20 * [-10] + 20 * [0] + 3 * [-4])
-    param_upper_bounds = np.array(40 * [20] + 3 * [4])
+    # initial_param_vector = np.ones(shape=(43,))
+    # param_lower_bounds = np.array(20 * [-10] + 20 * [0] + 3 * [-4])
+    # param_upper_bounds = np.array(40 * [20] + 3 * [4])
+    # param_bounds = np.stack([param_lower_bounds,
+    #                          param_upper_bounds], axis=1)
+
+    # initial vector and bounds
+    initial_param_vector = np.ones(shape=(45,))
+    param_lower_bounds = np.array(20 * [-10] + 20 * [0] + 5 * [-6])
+    param_upper_bounds = np.array(40 * [20] + 5 * [6])
     param_bounds = np.stack([param_lower_bounds,
                              param_upper_bounds], axis=1)
 
@@ -73,18 +80,19 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
     # make training set
     training_set = TrainingSet(datasets, experiments)
 
-    costfunc = lambda param_vec: training_set.get_cost(
-        np.concatenate((
-            param_vec[:-2],  # OT landscape + mm penalties + k_off
-            np.array([k_f, k_clv]),  # fixed rates
-            param_vec[-2:]  # k_on for nuseq + champ
-        )),
-        multiprocessing=True
-    )
+    # costfunc = lambda param_vec: training_set.get_cost(
+    #     np.concatenate((
+    #         param_vec[:-2],  # OT landscape + mm penalties + k_off
+    #         np.array([k_f, k_clv]),  # fixed rates
+    #         param_vec[-2:]  # k_on for nuseq + champ
+    #     )),
+    #     multiprocessing=True
+    # )
 
     # run the optimization
     _ = track_dual_annealing(
-        func=costfunc,
+        # func=costfunc,
+        func=training_set.get_cost,
         x0=initial_param_vector,
         bounds=param_bounds,
         out_path=out_dir,
