@@ -25,13 +25,16 @@ def get_root_dir(script_path):
 def main(target='E', script_path='./fit_data_da.py', out_path='results/',
          array_id=1):
 
-    visit = 2.62
+    run_id = (int(array_id) - 1)
+    visit_sweep = [2.3, 2.4, 2.5, 2.6, 2.7, 2.8]
+
+    visit = visit_sweep[run_id//10]
     print(f"q_visit: {visit:.2f}")
 
     maxiter = 2000
     print(f"maxiter: {maxiter:d}")
 
-    initial_temp = 300.
+    initial_temp = 5230.
     print(f"initl temp: {initial_temp:.1f}")
 
     final_temp = initial_temp * (2.**(visit-1)-1)/((2.+maxiter)**(visit-1)-1)
@@ -46,17 +49,6 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
         'restart_temp_ratio': 1E-20,  # never reached
         'visit': visit,
     }
-
-    # cost function with free rates
-    # k_f = 4.
-    # k_clv = 3.
-
-    # initial vector and bounds
-    # initial_param_vector = np.ones(shape=(43,))
-    # param_lower_bounds = np.array(20 * [-10] + 20 * [0] + 3 * [-4])
-    # param_upper_bounds = np.array(40 * [20] + 3 * [4])
-    # param_bounds = np.stack([param_lower_bounds,
-    #                          param_upper_bounds], axis=1)
 
     # initial vector and bounds
     initial_param_vector = np.ones(shape=(45,))
@@ -80,23 +72,13 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
     # make training set
     training_set = TrainingSet(datasets, experiments)
 
-    # costfunc = lambda param_vec: training_set.get_cost(
-    #     np.concatenate((
-    #         param_vec[:-2],  # OT landscape + mm penalties + k_off
-    #         np.array([k_f, k_clv]),  # fixed rates
-    #         param_vec[-2:]  # k_on for nuseq + champ
-    #     )),
-    #     multiprocessing=True
-    # )
-
     # run the optimization
     _ = track_dual_annealing(
-        # func=costfunc,
         func=training_set.get_cost,
         x0=initial_param_vector,
         bounds=param_bounds,
         out_path=out_dir,
-        cas9_log=False,
+        cas9_log=False,  # 45 parameters instead of 44
         **dual_annealing_kwargs
     )
 
