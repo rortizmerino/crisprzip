@@ -1,4 +1,20 @@
-from typing import Union
+"""
+The hybridization_kinetics module is the core of the CRISPRzipper model.
+It defines the basic properties of a CRISPR(-like) searcher and uses
+these to simulate its dynamics. It also has visualization functionality.
+
+Classes:
+    MismatchPattern
+    Searcher
+    SearcherTargetComplex(Searcher)
+    CoarseGrainedComplex(SearcherTargetComplex)
+    SearcherPlotter
+
+Functions:
+    coarse_grain_landscape(searcher_target_complex, itermediate_range=(7, 14))
+"""
+
+from typing import Union, Tuple
 
 import numpy as np
 from numpy.random import Generator, default_rng
@@ -86,8 +102,7 @@ class MismatchPattern:
 
 
 class Searcher:
-    """
-    Characterizes the hybridization landscape of a nucleic acid guided
+    """Characterizes the hybridization landscape of a nucleic acid guided
     searcher. Assumes a reference concentration of 1 nM.
 
     Attributes
@@ -109,7 +124,7 @@ class Searcher:
         by default.
 
     Methods
-    _______
+    -------
     probe_target(target_mismatches)
         Returns a SearcherTargetComplex object
     plot_landscape()
@@ -235,31 +250,16 @@ class SearcherTargetComplex(Searcher):
 
     Attributes
     ----------
-    guide_length: int
-        N, length of the nucleic acid guide (in bp)
     target_mismatches: ndarray
         Positions of mismatches in the guide-target hybrid: has length
         N, with entries 0 (matches) and 1 (mismatches).
-    on_target_landscape: ndarray
-        Contains the hybridization energies of the intermediate R-loop
-        states on an on-target, relative to the PAM energy. In presence
-        of a PAM state, it has length N (otherwise N-1).
     off_target_landscape: ndarray
         Contains the hybridization energies of the intermediate R-loop
         states on the current off-target.  In presence
         of a PAM state, it has length N (otherwise N-1).
-    mismatch_penalties: ndarray
-        Contains the energetic penalties associated with a mismatch
-        at a particular R-loop position. Has length N.
-    internal_rates: dict
-        Specifies the context-independent rates in the model. Should
-        contain 'k_off', 'k_f' and 'k_clv'.
-    pam_detection: bool
-        If true, the landscape includes a PAM recognition state. True
-        by default.
 
     Methods
-    _______
+    -------
     get_cleavage_probability()
         Returns the probability that a searcher in the PAM state (if
         present, otherwise b=1) cleaves a target before having left it
@@ -417,9 +417,9 @@ class SearcherTargetComplex(Searcher):
         time = np.atleast_1d(time)
 
         # where the magic happens; evaluating the master equation
-        exp_matrix = exponentiate_fast(rate_matrix, time)
+        exp_matrix = _exponentiate_fast(rate_matrix, time)
         if exp_matrix is None:  # this is a safe alternative for e
-            exp_matrix = exponentiate_iterative(rate_matrix, time)
+            exp_matrix = _exponentiate_iterative(rate_matrix, time)
 
         # calculate occupancy: P(t) = exp(Mt) P0
         landscape_occupancy = exp_matrix.dot(initial_condition)
@@ -534,7 +534,7 @@ class SearcherTargetComplex(Searcher):
         return axs
 
 
-def exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
+def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     """
     Fast method to calculate exp(M*t), by diagonalizing matrix M.
     Returns None if diagnolization is problematic:
@@ -573,7 +573,7 @@ def exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     return exp_matrix
 
 
-def exponentiate_iterative(matrix: np.ndarray, time: np.ndarray):
+def _exponentiate_iterative(matrix: np.ndarray, time: np.ndarray):
     """The safer method to calculate exp(M*t), looping over the values
     in t and using the scipy function for matrix exponentiation."""
 
@@ -793,7 +793,7 @@ class SearcherPlotter:
 
         return axs
 
-    def plot_off_target_landscape(self, mismatch_positions: np.ndarray,
+    def plot_off_target_landscape(self, mismatch_positions: MismatchPattern,
                                   y_lims: tuple = None,
                                   color='firebrick', axs: Axes = None,
                                   on_rates: list = None,
