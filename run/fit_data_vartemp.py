@@ -28,7 +28,7 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
     run_id = (int(array_id) - 1)
     temp0_sweep = [30., 100., 300., 1000., 3000., 10000.]
 
-    visit = 2.62
+    visit = 2.5
     print(f"q_visit: {visit:.2f}")
 
     maxiter = 2000
