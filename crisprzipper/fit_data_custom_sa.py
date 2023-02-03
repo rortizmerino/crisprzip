@@ -7,14 +7,14 @@ if os.path.exists('C:/Users/HP/depkengit/CRISPR_kinetic_model'):
 
 import numpy as np
 
-from model.training_set import read_dataset, TrainingSet
-from model.old.sim_anneal import SimulatedAnnealer
+from crisprzipper.model import read_dataset, TrainingSet
+from crisprzipper.model import SimulatedAnnealer
 
 
 def get_root_dir(script_path):
     root_dir = os.path.abspath(
         os.path.join(
-            os.path.dirname(os.path.abspath(script_path)),  # parent dir (=/run)
+            os.path.dirname(os.path.abspath(script_path)),  # parent dir (=/bin)
             os.pardir  # /.. (up a directory)
         )
     )
@@ -64,7 +64,7 @@ def main(script_path='./fit_data_custom_sa.py', out_path='results/', array_id=1)
     guide_length = 20
     param_vector_ones = np.ones(2 * guide_length + 4)
 
-    # run the optimization
+    # bin the optimization
     SimulatedAnnealer(
         function=training_set.get_cost,
         initial_param_vector=param_vector_ones,

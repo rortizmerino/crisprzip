@@ -6,34 +6,30 @@ import numpy as np
 from typing import Union
 
 import matplotlib.pyplot as plt
-from scipy.stats import pearsonr
 from matplotlib.colors import LinearSegmentedColormap, to_hex
-from matplotlib import animation, colors
+from matplotlib import animation
 import seaborn as sns
 from matplotlib.offsetbox import AnchoredText
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from model.data import ExperimentType
-from model.hybridization_kinetics import Searcher, SearcherPlotter
-from model.training_set import TrainingSet
-import model.parameter_vector
+from crisprzipper.model.data import ExperimentType
+from crisprzipper.model.hybridization_kinetics import SearcherPlotter
 
 
 class LogAnalyzer:
     """Class to read and interpret the log file of an optimization
-    run.
+    bin.
 
     Attributes
     ----------
     log_file: str
         Path of the log file
     log_dataframe: pd.DataFrame
-        Dataframe containing all the run information
+        Dataframe containing all the bin information
     log_searchers: pd.Series
         Series containing the Searcher instances corresponding to all
         parameter vectors in the log dataframe
     total_steps: int
-        Total number of steps in optimization run
+        Total number of steps in optimization bin
     final_cost: float
         Fit cost of the final parameter vector
     landscape_lims: tuple
@@ -49,7 +45,7 @@ class LogAnalyzer:
         Creates full log dashboard, with the final parameter state
     make_dashboard_video()
         Creates matplotlib.Animation object of the dashboard during the
-        optimization run
+        optimization bin
     """
 
     dashboard_specs = {
@@ -123,7 +119,7 @@ class LogAnalyzer:
                     return total_steps
 
     def get_run_time(self):
-        """Get run time from log file"""
+        """Get bin time from log file"""
         with open(self.log_file, 'r') as log_reader:
             log_lines = log_reader.readlines()
 
@@ -171,7 +167,7 @@ class LogAnalyzer:
         for i in range(landscape_np.shape[0]):
             param_vector = landscape_np[i]
             pvec_series.loc[i] = (
-                getattr(model.parameter_vector, pvec_type)(param_vector)
+                getattr(crisprzipper.model.parameter_vector, pvec_type)(param_vector)
             )
         return pvec_series
 
@@ -394,13 +390,13 @@ class DashboardVideo:
     Attributes
     ----------
     log_files: list
-        List of paths to optimization run log files
+        List of paths to optimization bin log files
 
     Methods
     -------
     make_video()
         Creates matplotlib.Animation instance with the log dashboard
-        showing the dynamics of the optimization run
+        showing the dynamics of the optimization bin
     save_video(video_path)
         Saves animation as .mp4-file (this takes quite long).
 
@@ -555,7 +551,7 @@ class DashboardVideo:
 
 class RunAnalyzer:
     """
-    Analyzes all the results of an optimization run. A RunAnalyzer
+    Analyzes all the results of an optimization bin. A RunAnalyzer
     object is essentially a collection of LogAnalyzer objects that has
     a number of methods to do quick analyses on them.
 
@@ -568,7 +564,7 @@ class RunAnalyzer:
     Methods
     -------
     summarize()
-        Makes a dataframe that summarizes all run information
+        Makes a dataframe that summarizes all bin information
     display_top_dashboard()
         Makes a dashboard figure of the best runs in the job.
     display_full_dashboard()
@@ -627,7 +623,7 @@ class RunAnalyzer:
         ]
 
     def summarize(self) -> pd.DataFrame:
-        """Makes a dataframe that summarizes all run information"""
+        """Makes a dataframe that summarizes all bin information"""
         summary = pd.DataFrame(
             data={
                 'Job id': self.job_ids,
@@ -641,7 +637,7 @@ class RunAnalyzer:
 
     def display_top_dashboard(self, top=1):
         """Makes a dashboard figure of the best runs in the job. By
-        default, it displays a dashboard for the single best run."""
+        default, it displays a dashboard for the single best bin."""
 
         sorted_analyzers = sorted(self.analyzers,
                                   key=lambda analyzer: analyzer.final_cost)

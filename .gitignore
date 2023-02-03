@@ -2,13 +2,13 @@
 .idea
 .run
 */__pycache__/*
-run/cluster/user.config
+bin/cluster/user.config
 
 .temp
-model/__pycache__
+crisprzipper/model/__pycache__
 scrap
 results
 data/data_processing/old
 data/rawdata
-run/vid_data
+bin/vid_data
 .pytest_cache

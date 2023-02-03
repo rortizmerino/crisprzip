@@ -5,14 +5,12 @@ import os
 if os.path.exists('C:/Users/HP/depkengit/CRISPR_kinetic_model'):
     sys.path.append('C:/Users/HP/depkengit/CRISPR_kinetic_model')
 
-import numpy as np
-
-from model.fit_analysis import LogAnalyzer, DashboardVideo
+from crisprzipper.model.fit_analysis import DashboardVideo
 
 def get_root_dir(script_path):
     root_dir = os.path.abspath(
         os.path.join(
-            os.path.dirname(os.path.abspath(script_path)),  # parent dir (=/run)
+            os.path.dirname(os.path.abspath(script_path)),  # parent dir (=/bin)
             os.pardir  # /.. (up a directory)
         )
     )

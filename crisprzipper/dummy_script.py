@@ -1,13 +1,11 @@
 import sys
 import os
 
-from model import *
-
 
 def get_root_dir(script_path):
     root_dir = os.path.abspath(
         os.path.join(
-            os.path.dirname(os.path.abspath(script_path)),  # parent dir (=/run)
+            os.path.dirname(os.path.abspath(script_path)),  # parent dir (=/bin)
             os.pardir  # /.. (up a directory)
         )
     )

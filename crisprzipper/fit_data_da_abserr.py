@@ -1,59 +1,45 @@
 import sys
 import os
 
-# on Hidde's laptop
+# on Hidde's private laptop
 if os.path.exists('C:/Users/HP/depkengit/CRISPR_kinetic_model'):
     sys.path.append('C:/Users/HP/depkengit/CRISPR_kinetic_model')
 
+# on Hidde's TU laptop
+if os.path.exists('/'):
+    sys.path.append('/')
+
 import numpy as np
 
-from model.training_set import read_dataset, TrainingSet
-from model.fit_optimizer import track_dual_annealing
+from crisprzipper.model import read_dataset, TrainingSet
+from crisprzipper.model import track_dual_annealing
 
 
 def get_root_dir(script_path):
     root_dir = os.path.abspath(
         os.path.join(
-            os.path.dirname(os.path.abspath(script_path)),
-            # parent dir (=/run)
+            os.path.dirname(os.path.abspath(script_path)),  # parent dir (=/bin)
             os.pardir  # /.. (up a directory)
         )
     )
     return root_dir
 
 
-def main(target='E', script_path='./fit_data_da.py', out_path='results/',
-         array_id=1):
-
-    run_id = (int(array_id) - 1)
-    temp0_sweep = [30., 100., 300., 1000., 3000., 10000.]
-
-    visit = 2.5
-    print(f"q_visit: {visit:.2f}")
-
-    maxiter = 2000
-    print(f"maxiter: {maxiter:d}")
-
-    initial_temp = temp0_sweep[run_id//10]
-    print(f"initl temp: {initial_temp:.1f}")
-
-    final_temp = initial_temp * (2.**(visit-1)-1)/((2.+maxiter)**(visit-1)-1)
-    print(f"final temp: {final_temp:.2e}")
+def main(local_search, script_path='./fit_data_da.py',
+         out_path='results/local_test/', array_id=1):
 
     # FIT SETTINGS
     dual_annealing_kwargs = {
-        'no_local_search': True,
-        'maxiter': maxiter,
-        'maxfun': 100*(maxiter*1.1),  # never reached
-        'initial_temp': initial_temp,
-        'restart_temp_ratio': 1E-20,  # never reached
-        'visit': visit,
+        'no_local_search': not bool(local_search),
+        'maxiter': 2500,
+        'maxfun': 250000,
+        # 'maxfun': 25,
     }
 
     # initial vector and bounds
-    initial_param_vector = np.ones(shape=(45,))
-    param_lower_bounds = np.array(20 * [-10] + 20 * [0] + 5 * [-6])
-    param_upper_bounds = np.array(40 * [20] + 5 * [6])
+    initial_param_vector = np.ones(shape=(44,))
+    param_lower_bounds = np.array(21 * [-10] + 20 * [0] + 3 * [-6])
+    param_upper_bounds = np.array(41 * [20] + 3 * [6])
     param_bounds = np.stack([param_lower_bounds,
                              param_upper_bounds], axis=1)
 
@@ -61,24 +47,28 @@ def main(target='E', script_path='./fit_data_da.py', out_path='results/',
     root_dir = get_root_dir(script_path)
     out_dir = os.path.abspath(out_path)
 
-    # preparing champ and nucleaseq data (MY AGGREGATE DATASET)
+    # preparing champ and nucleaseq data (ORIGINAL DATASET)
     experiments = ['NucleaSeq', 'Champ']
     datasets = []
     for exp in experiments:
-        path = os.path.join(root_dir, f'data/SpCas9/{exp}2020/target{target}/'
-                                      f'aggr_data.csv')
+        path = os.path.join(root_dir, f'data/SpCas9/{exp}2020/orig_data.csv')
         datasets += [read_dataset(path)]
 
     # make training set
-    training_set = TrainingSet(datasets, experiments)
+    training_set = TrainingSet(datasets=datasets,
+                               experiment_names=experiments,
+                               experiment_weights=[1, 1],
+                               weigh_error=True,
+                               rel_error=False,
+                               weigh_multiplicity=True,
+                               normalize_weights=False)
 
-    # run the optimization
+    # bin the optimization
     _ = track_dual_annealing(
         func=training_set.get_cost,
         x0=initial_param_vector,
         bounds=param_bounds,
         out_path=out_dir,
-        cas9_log=False,  # 45 parameters instead of 44
         **dual_annealing_kwargs
     )
 
