@@ -1,14 +1,12 @@
 # folders not to include on GitLab repository
 .idea
 .run
-*/__pycache__/*
-bin/cluster/user.config
-
 .temp
-model/__pycache__
 scrap
 results
-data/data_processing/old
-data/rawdata
-bin/vid_data
+data
+notebooks
+
+bin/cluster/user.config
+*/__pycache__/*
 .pytest_cache
