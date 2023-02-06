@@ -5,7 +5,7 @@
 bin/cluster/user.config
 
 .temp
-crisprzipper/model/__pycache__
+model/__pycache__
 scrap
 results
 data/data_processing/old
