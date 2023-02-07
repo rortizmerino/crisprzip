@@ -22,10 +22,12 @@ from numpy.typing import ArrayLike
 from scipy import linalg
 from scipy.linalg import inv
 
+from model.tools import format_point_mutations
+
 
 class MismatchPattern:
     """A class indicating the positions of the mismatched
-    bases in a target sequence.
+    bases in a target sequence. Assumes a 3'-to-5' DNA direction.
 
     Attributes
     ----------
@@ -81,6 +83,16 @@ class MismatchPattern:
         if mm_pos_list is not None:
             array[mm_pos_list] = 1
         return cls(array)
+
+    @classmethod
+    def from_target_sequence(cls, protospacer: str,
+                             target_sequence: str) -> 'MismatchPattern':
+        """Alternative constructor"""
+        pmut_list = format_point_mutations(protospacer, target_sequence)
+        return cls.from_mm_pos(
+            len(protospacer),
+            [int(pmut[1:3]) for pmut in pmut_list]
+        )
 
     @classmethod
     def make_random(cls, guide_length: int, mm_num: int,
