@@ -77,9 +77,14 @@ class MismatchPattern:
         return cls(np.array(list(mm_array_string), dtype='int'))
 
     @classmethod
-    def from_mm_pos(cls, guide_length: int, mm_pos_list: list = None):
-        """Alternative constructor"""
+    def from_mm_pos(cls, guide_length: int, mm_pos_list: list = None,
+                    zero_based_index=False):
+        """Alternative constructor. Uses 1-based indexing by default. """
         array = np.zeros(guide_length)
+
+        if not zero_based_index:
+            mm_pos_list = [x - 1 for x in mm_pos_list]
+
         if mm_pos_list is not None:
             array[mm_pos_list] = 1
         return cls(array)
