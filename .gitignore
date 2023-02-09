@@ -7,6 +7,6 @@ results
 data
 notebooks
 
-bin/cluster/user.config
+*/user.config
 */__pycache__/*
 .pytest_cache
