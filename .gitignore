@@ -9,4 +9,6 @@ notebooks
 
 */user.config
 */__pycache__/*
+*/.ipynb_checkpoints/*
 .pytest_cache
+/docs/.ipynb_checkpoints/introduction-checkpoint.ipynb
