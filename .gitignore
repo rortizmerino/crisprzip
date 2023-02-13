@@ -1,14 +1,16 @@
 # folders not to include on GitLab repository
-.idea
-.run
-.temp
-scrap
-results
-data
-notebooks
+.idea/
+.run/
+.temp/
+scrap/
+results/
+data/
+notebooks/
 
-*/user.config
-*/__pycache__/*
-*/.ipynb_checkpoints/*
-.pytest_cache
-/docs/.ipynb_checkpoints/introduction-checkpoint.ipynb
+# cache
+**/__pycache__/
+**/.ipynb_checkpoints/
+**/.pytest_cache/
+
+# personal
+**/user.config
