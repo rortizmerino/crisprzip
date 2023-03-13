@@ -2,6 +2,7 @@
 .idea/
 .run/
 .temp/
+crisprzipper.egg-info/
 scrap/
 results/
 data/
