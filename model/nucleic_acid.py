@@ -1,6 +1,6 @@
 from abc import ABC
 import random
-from typing import Union, List
+from typing import Union, List, Tuple
 
 import numpy as np
 from numpy.random import Generator, default_rng
@@ -176,6 +176,8 @@ class DsNa(NucleicAcid, ABC):
                         else self.na_types[0](strand1, fwd_direction=True))
         self.strand2 = (strand2 if isinstance(strand2, SsNa)
                         else self.na_types[1](strand2, fwd_direction=False))
+        self.fwd_direction = self.strand1.fwd_direction
+
         self.__check_length()
         self.__check_directionality()
         self.__check_na_types()
@@ -208,21 +210,21 @@ class DsNa(NucleicAcid, ABC):
         if t2 != self.na_types[1]:
             raise ValueError(f"Strand 2 should be of type {self.na_types[1]}")
 
-    def __find_wc_basepairs(self):
+    def __make_labels(self, count):
+        reps = len(self) // count
+        labs = ''.join(["{0:>{1}d}".format(count * i, count)
+                        for i in range(1, reps + 1)])
+        labs = ("1" + labs[1:len(self)] +
+                "{0:>{1}d}".format(len(self), count-1))
+        sep = 3 * " "
+        return sep + labs + sep
+
+    def find_wc_basepairs(self):
         wc_basepairs = len(self) * [0, ]
         for i, nt in enumerate(self.strand1.sequence):
             if self.basepairs[nt] == self.strand2.sequence[i]:
                 wc_basepairs[i] = 1
         return wc_basepairs
-
-    def __make_labels(self, count):
-        reps = len(self) // count + 1
-        labs = ''.join(["{0:>{1}d}".format(count * i, count)
-                        for i in range(1, reps + 1)])
-        labs = ("1" + labs[1:len(self)-count] +
-                "{0:>{1}d}".format(len(self), count))
-        sep = 3 * " "
-        return sep + labs + sep
 
     @classmethod
     def match_single_strand(cls, strand1: Union[str, SsNa]):
@@ -241,7 +243,7 @@ class DsNa(NucleicAcid, ABC):
             print(self.__make_labels(count))
         print(str(self.strand1))
         if basepairing:
-            wc_basepairs = self.__find_wc_basepairs()
+            wc_basepairs = self.find_wc_basepairs()
             bp_string = (''.join(map(str, wc_basepairs))
                          .replace('0', ' ')
                          .replace('1', '|'))
@@ -279,5 +281,56 @@ class HybridNa(DsNa):
                  'T': 'A'}
 
 
-class BaseStack(DsNa):
-    pass
+def find_internal_loops(nucleic_acid: DsNa):
+    matches = nucleic_acid.find_wc_basepairs()
+    loop_info = {}
+    last_loop = None
+    for i, m in enumerate(matches):
+        if m == 0 and last_loop is None:
+            last_loop = i
+            loop_info[i] = 1
+        elif m == 0:
+            loop_info[last_loop] += 1
+        else:
+            last_loop = None
+    return loop_info
+
+
+def format_basestacks(nucleic_acid: DsNa) -> Tuple[List[str], List[str]]:
+
+    # Make sure that is in 5'-to-3' notation
+    if not nucleic_acid.fwd_direction:
+        nucleic_acid = nucleic_acid.flip()
+
+    if isinstance(nucleic_acid, DsDna):
+        n1 = n2 = 'd'
+    elif isinstance(nucleic_acid, DsRna):
+        n1 = n2 = 'r'
+    elif isinstance(nucleic_acid, HybridNa):
+        n1 = 'd'
+        n2 = 'r'
+    else:
+        raise ValueError(f"Cannot handle nucleic acid of type"
+                         f"{type(nucleic_acid)}.")
+
+    s1 = nucleic_acid.strand1.sequence
+    s2 = nucleic_acid.strand2.sequence
+
+    terminals = [
+        n1 + s1[0] + "-" + n2 + s2[-1],
+        n2 + s2[0] + "-" + n1 + s1[-1]
+    ]
+
+    basestacks = [
+        n1 + s1[i:i + 2] + "/" + n2 + s2[i + 1:i - 1:-1]
+        for i in range(len(nucleic_acid) - 1)
+    ]
+
+    return basestacks, terminals
+
+
+class NearestNeighborModel:
+    DsDna_model = "SantaLuciaHicks2004"
+    Hybrid_model = "Alkan2018"
+    # DsRna_model = "Turner2004"
+    # Hybrid_model = "Banarjee2020"
