@@ -6,13 +6,14 @@ Classes:
     MismatchPattern
     TargetDna
     GuideTargetHybrid
+    NearestNeighborModel
 
 Functions:
     format_point_mutations()
 """
-
-
+import json
 import random
+from pathlib import Path
 from typing import Union, List
 
 import numpy as np
@@ -367,3 +368,335 @@ class GuideTargetHybrid:
             dna_repr[3]
         ])
 
+
+class NearestNeighborModel:
+    """
+    An implementation of the nearest neighbor model predicting energies
+    for guide RNA-target DNA R-loops. Instantiating this class is only
+    necessary to load the parameter files, a single object can be used
+    to make all energy landscapes.
+
+    Methods
+    -------
+    load_data()
+        Loads the energy parameters.
+    set_energy_unit()
+        Change energy units betweel kBT and kcal/mol.
+    get_hybridization_energy()
+        Finds the hybridization energies for the R-loop formation.
+
+    Notes
+    -----
+    Method adapted from Alkan et al. (2018). DNA duplex parameters from
+    SantaLucia & Hicks (2004), RNA-DNA hybrid duplex parameters from
+    Alkan et al. (2018).
+
+    There are 4 contributions to the R-loop energy.
+
+    1) Basestacks in the DNA duplex that should be broken. These
+        parameters can be loaded directly from the SantaLucia & Hicks
+        dataset. Unlike Alkan et al., we also consider basestacks with the
+        basepairs flanking the target region. If these are unknown,
+        we take the average energy from all 4 possible basestacks.
+    2) Basestacks in the RNA/DNA hybrid that are created. Some of these
+        energies are experimentally determined, others are an average
+        of dsDNA and dsRNA values.
+    3) Internal loops, corresponding to (regions of) mismatches flanked
+        by matching basepairs. For internal loops of length 1 and 2,
+        these have specific energies, for length > 2, their energies
+        are the sum of the left and right basestack and a
+        length-specific energy contribution.
+    4) Basepair terminals at the end and beginning of the R-loop.
+        Alkan et al. consider only external loops, which appear only when
+        the guide-target hybrid starts or ends with a mismatch, but
+        we always consider the energy contribution due to the first and
+        last matching basepair. These energies are typically quite
+        small.
+
+    References
+    ----------
+    .. [1] Alkan F, Wenzel A, Anthon C, Havgaard JH, Gorodkin J (2018).
+        CRISPR-Cas9 off-targeting assessment with nucleic acid duplex
+        energy parameters. doi.org/10.1186/s13059-018-1534-x
+    .. [2] SantaLucia J, Hicks D (2004). The Thermodynamics of DNA
+        Structural Motifs. doi.org/10.1146/annurev.biophys.32.110601.141800
+
+    """
+
+    # paths relative to crisprzipper source root
+    dna_dna_params_file = "nucleicacid_params/santaluciahicks2004.json"
+    rna_dna_params_file = "nucleicacid_params/alkan2018.json"
+    dna_dna_params: dict
+    rna_dna_params: dict
+
+    energy_unit = "kbt"  # alternative: kcalmol
+
+    @classmethod
+    def load_data(cls):
+        with open(Path(__file__).parents[1].joinpath(cls.dna_dna_params_file),
+                  'rb') as file:
+            cls.dna_dna_params = json.load(file)
+
+        with open(Path(__file__).parents[1].joinpath(cls.rna_dna_params_file),
+                  'rb') as file:
+            cls.rna_dna_params = json.load(file)
+
+    @classmethod
+    def set_energy_unit(cls, unit: str):
+        cls.energy_unit = unit
+
+    @classmethod
+    def convert_units(cls, energy_value: Union[float, np.ndarray]):
+
+        if cls.energy_unit == "kcalmol":
+            return energy_value
+
+        elif cls.energy_unit == "kbt":
+            ref_temp = 310.15  # 310.15 deg K = 37 deg C
+            gas_constant = 1.9872E-3  # R = N_A * k_B [units kcal / (K mol)]
+            return energy_value / (gas_constant * ref_temp)
+
+    @classmethod
+    def get_hybridization_energy(cls, hybrid: GuideTargetHybrid) -> np.ndarray:
+        """Calculates the energy that is required to open an R-loop
+         between the guide RNA and target DNA of the hybrid object
+         for each R-loop length. Converts energy units if necessary."""
+        dna_opening_energy = cls.__dna_opening_energy(hybrid)
+        rna_duplex_energy = cls.__rna_duplex_energy(hybrid)
+        return cls.convert_units(
+            dna_opening_energy + rna_duplex_energy
+        )
+
+    @classmethod
+    def __dna_opening_energy(cls, hybrid: GuideTargetHybrid) -> np.ndarray:
+        """Calculated following the methods from Alkan et al. (2018).
+        The DNA opening energy is the sum of all the basestack energies
+        in the sequence (negative)."""
+
+        stacking_energies = cls.dna_dna_params["stacking energies"]
+
+        def average_basestack(side='downstream'):
+            """If down- or upstream basepair is unknown, this function
+            loops over all options to find the average basestack
+            energy."""
+            basestack_energy = 0
+            possible_bps = [('A', 'T'), ('C', 'G'),
+                            ('G', 'C'), ('T', 'A')]
+
+            for bp in possible_bps:
+                if side == 'upstream':
+                    basestack = (
+                        f"d{bp[0]}{hybrid.target.seq1[0]}/"
+                        f"d{bp[1]}{hybrid.target.seq2[0]}"
+                    )
+                elif side == 'downstream':
+                    basestack = (
+                        f"d{hybrid.target.seq1[-1]}{bp[0]}/"
+                        f"d{hybrid.target.seq2[-1]}{bp[1]}"
+                    )
+                else:
+                    raise ValueError("Side can only be downstream or"
+                                     "upstream.")
+                basestack_energy += (stacking_energies[basestack] / 4)
+            return basestack_energy
+
+        open_energy = np.zeros(len(hybrid.guide) + 1)
+
+        # Handling the left basestack
+        if hybrid.target.upstream_bp is not None:
+            left_basestack = (f"d{hybrid.target.upstream_bp[0]}"
+                              f"{hybrid.target.seq1[0]}/"
+                              f"d{hybrid.target.upstream_bp[-1]}"
+                              f"{hybrid.target.seq2[0]}")
+            open_energy[1:] -= stacking_energies[left_basestack]
+        else:
+            open_energy[1:] -= average_basestack("upstream")
+
+        # Handling right basestacks
+        for i in range(0, len(hybrid.guide) - 1):
+            right_basestack = (f"d{hybrid.target.seq1[i:i+2]}/"
+                               f"d{hybrid.target.seq2[i:i+2]}")
+            open_energy[i+1:] -= stacking_energies[right_basestack]
+
+        # Final right basestack
+        if hybrid.target.dnstream_bp is not None:
+            left_basestack = (f"d{hybrid.target.seq1[-1]}"
+                               f"{hybrid.target.dnstream_bp[0]}/"
+                               f"d{hybrid.target.seq2[-1]}"
+                               f"{hybrid.target.dnstream_bp[-1]}")
+            open_energy[-1] -= stacking_energies[left_basestack]
+        else:
+            open_energy[-1] -= average_basestack("downstream")
+
+        return open_energy
+
+    @classmethod
+    def __rna_duplex_energy(cls, hybrid: GuideTargetHybrid) -> np.ndarray:
+        """Calculated following the methods from Alkan et al. (2018).
+        The RNA duplex energy has three contributions: 1) basestacks,
+        2) internal loops, 3) external loops / terminals. Alkan et al.
+        only look at external loops, but here, we instead look
+        at both basepair terminals, whether or not they are part of
+        an external loop."""
+
+        loop_energies = cls.rna_dna_params['loop energies']
+        terminal_energies = cls.rna_dna_params['terminal penalties']
+        stacking_energies = cls.rna_dna_params['stacking energies']
+
+        def basestack_energy(i: int):
+            """Locates basestacks in R-loop of length i and
+            returns their total energy."""
+            # # print(i)
+            if i < 2:
+                return 0.
+
+            energy = 0.
+            mm_pos = hybrid.find_mismatches()[:i]
+            for j, nt in enumerate(hybrid.guide[:i-1]):
+                if mm_pos[j] == 0 and mm_pos[j+1] == 0:
+                    # Reversed order to match 5'-to-3' notation
+                    basestack = f"r{hybrid.guide[j+1]}" \
+                                f"{hybrid.guide[j]}/" \
+                                f"d{hybrid.target.seq1[j+1]}" \
+                                f"{hybrid.target.seq1[j]}"
+                    energy += stacking_energies["2mer"][basestack]
+            return energy
+
+        def internal_loops_energy(i: int):
+            """Locates internal loops in R-loop of length i and
+            returns their total energy."""
+            if i < 3:
+                return 0.
+
+            energy = 0.
+            mm_pos = hybrid.find_mismatches()[:i]
+            for j in range(1, i - 1):
+
+                # identify left side of internal loop
+                if mm_pos[j-1] == 0 and mm_pos[j] == 1:
+                    looplen = 1
+
+                    # find right side of internal loop
+                    for k in range(j+1, i):
+                        if mm_pos[k] == 0:
+                            break
+                        looplen += 1
+                    # if no closing basepair has been found; stop
+                    if j + looplen == i:
+                        break
+
+                    if looplen == 1:
+                        # Reversed order to match 5'-to-3' notation
+                        basestacks = (
+                            f"r{hybrid.guide[j + 1]}"
+                            f"{hybrid.guide[j]}"
+                            f"{hybrid.guide[j - 1]}/"
+                            f"d{hybrid.target.seq1[j + 1]}"
+                            f"{hybrid.target.seq1[j]}"
+                            f"{hybrid.target.seq1[j - 1]}"
+                        )
+                        energy += stacking_energies["3mer"][basestacks]
+
+                    elif looplen == 2:
+                        # Reversed order to match 5'-to-3' notation
+                        basestacks = (
+                            f"r{hybrid.guide[j + 2]}"
+                            f"{hybrid.guide[j + 1]}"
+                            f"{hybrid.guide[j]}"
+                            f"{hybrid.guide[j - 1]}/"
+                            f"d{hybrid.target.seq1[j + 2]}"
+                            f"{hybrid.target.seq1[j + 1]}"
+                            f"{hybrid.target.seq1[j]}"
+                            f"{hybrid.target.seq1[j - 1]}"
+                        )
+                        energy += stacking_energies["4mer"][basestacks]
+
+                    elif looplen >= 3:
+                        left_basestack = (
+                            f"r{hybrid.guide[j]}"
+                            f"{hybrid.guide[j - 1]}/"
+                            f"d{hybrid.target.seq1[j]}"
+                            f"{hybrid.target.seq1[j - 1]}"
+                        )
+                        right_basestack = (
+                            f"r{hybrid.guide[j+looplen]}"
+                            f"{hybrid.guide[j+looplen-1]}/"
+                            f"d{hybrid.target.seq1[j+looplen]}"
+                            f"{hybrid.target.seq1[j+looplen-1]}"
+                        )
+                        energy += (
+                            stacking_energies["2mer"][left_basestack] +
+                            stacking_energies["2mer"][right_basestack] +
+                            loop_energies[f"{2*looplen} nt"]
+                        )
+
+            return energy
+
+        def external_loops_energy(i: int):
+            """Locates external loops in R-loop of length i and
+            returns their total energy. Unused right now because
+            we're considering all terminal energies instead."""
+            mm_pos = hybrid.find_mismatches()[:i]
+
+            if sum(mm_pos) == len(mm_pos):
+                return 0.
+
+            energy = 0.
+
+            # open left side
+            if mm_pos[0] == 1:
+                # find right side of internal loop
+                for k in range(0, i):
+                    if mm_pos[k] == 0:
+                        basepair = f"r{hybrid.guide[k]}-" \
+                                   f"d{hybrid.target.seq1[k]}"
+                        energy += terminal_energies[basepair]
+                        break
+
+            # open right side
+            if mm_pos[-1] == 1:
+                # find right side of internal loop
+                for k in range(i, 0, -1):
+                    if mm_pos[k] == 0:
+                        basepair = f"r{hybrid.guide[k]}-" \
+                                   f"d{hybrid.target.seq1[k]}"
+                        energy += terminal_energies[basepair]
+                        break
+
+            return energy
+
+        def terminals_energy(i: int):
+            """Locates terminals in R-loop of length i and
+            returns their total energy."""
+
+            mm_pos = hybrid.find_mismatches()[:i]
+            if sum(mm_pos) == len(mm_pos):
+                return 0.
+
+            energy = 0.
+            # find leftmost basepair
+            for k in range(0, i):
+                if mm_pos[k] == 0:
+                    basepair = f"r{hybrid.guide[k]}-" \
+                               f"d{hybrid.target.seq1[k]}"
+                    energy += terminal_energies[basepair]
+                    break
+
+            # find rightmost basepair
+            for k in list(np.arange(i, 0, -1) - 1):
+                if mm_pos[k] == 0:
+                    basepair = f"r{hybrid.guide[k]}-" \
+                               f"d{hybrid.target.seq1[k]}"
+                    energy += terminal_energies[basepair]
+                    break
+
+            return energy
+
+        # Looping over R-loop states, adding all energy contributions
+        duplex_energy = np.array([
+            (basestack_energy(i) +
+             internal_loops_energy(i) +
+             terminals_energy(i))
+            for i in range(len(hybrid.guide) + 1)
+        ])
+        return duplex_energy
