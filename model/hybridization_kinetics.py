@@ -20,7 +20,8 @@ from numpy.typing import ArrayLike
 from scipy import linalg
 from scipy.linalg import inv
 
-from .nucleic_acid import MismatchPattern
+from .nucleic_acid import MismatchPattern, GuideTargetHybrid, \
+    get_hybridization_energy
 
 
 class Searcher:
@@ -129,7 +130,7 @@ class Searcher:
     def calculate_solution_energy(self, k_on):
         """Given an on-rate, returns the effective free energy of the
         solution state (under the assumption of detailed balance)"""
-        return np.log(k_on/self.internal_rates['k_off'])
+        return np.log(k_on / self.internal_rates['k_off'])
 
 
 class SearcherTargetComplex(Searcher):
@@ -179,8 +180,8 @@ class SearcherTargetComplex(Searcher):
         else:
             self.target_mismatches = target_mismatches
 
-        self.off_target_landscape = self.__get_off_target_landscape()
-        self.backward_rate_array = self.__get_backward_rate_array()
+        self.off_target_landscape = self._get_off_target_landscape()
+        self.backward_rate_array = self._get_backward_rate_array()
 
     def generate_dead_clone(self):
         """Returns SearcherTargetComplex object with zero catalytic
@@ -189,7 +190,7 @@ class SearcherTargetComplex(Searcher):
         dead_complex = dead_searcher.probe_target(self.target_mismatches)
         return dead_complex
 
-    def __get_off_target_landscape(self):
+    def _get_off_target_landscape(self):
         """Adds penalties due to mismatches to landscape"""
         landscape_penalties = np.cumsum(
             self.target_mismatches.pattern *
@@ -208,7 +209,7 @@ class SearcherTargetComplex(Searcher):
 
         return off_target_landscape
 
-    def __get_landscape_diff(self):
+    def _get_landscape_diff(self):
         """Returns the difference between landscape states"""
         if self.pam_detection:
             hybrid_landscape = np.concatenate((
@@ -226,9 +227,9 @@ class SearcherTargetComplex(Searcher):
             ))
         return np.diff(hybrid_landscape, prepend=np.zeros(1))
 
-    def __get_backward_rate_array(self):
+    def _get_backward_rate_array(self):
         """Obtains backward rates from detailed balance condition"""
-        boltzmann_factors = np.exp(self.__get_landscape_diff())
+        boltzmann_factors = np.exp(self._get_landscape_diff())
         backward_rate_array = np.concatenate(
             #  solution state
             (np.zeros(1),
@@ -408,6 +409,32 @@ class SearcherTargetComplex(Searcher):
         return bound_fraction
 
 
+class SearcherSequenceComplex(SearcherTargetComplex):
+
+    def __init__(self, on_target_landscape: np.ndarray,
+                 mismatch_penalties: np.ndarray, internal_rates: dict,
+                 guide_target_hybrid: GuideTargetHybrid):
+
+        self.hybrid = guide_target_hybrid
+        mismatch_pattern = guide_target_hybrid.get_mismatch_pattern()
+        super().__init__(on_target_landscape, mismatch_penalties,
+                         internal_rates, mismatch_pattern)
+
+    def _get_off_target_landscape(self):
+        internal_na_energy = get_hybridization_energy(
+            guide_sequence=self.hybrid.guide,
+            target_sequence=self.hybrid.target.seq1,
+            upstream_nt=(None if self.hybrid.target.upstream_bp is None
+                         else self.hybrid.target.upstream_bp[0]),
+            downstream_nt=(None if self.hybrid.target.dnstream_bp is None
+                           else self.hybrid.target.dnstream_bp[0])
+        )[1:]
+        protein_na_energy = (
+            SearcherTargetComplex._get_off_target_landscape(self)
+        )
+        return protein_na_energy + internal_na_energy
+
+
 def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     """
     Fast method to calculate exp(M*t), by diagonalizing matrix M.
@@ -455,7 +482,7 @@ def _exponentiate_iterative(matrix: np.ndarray, time: np.ndarray):
                                   time.shape[0],
                                   matrix.shape[1])))
     for i in range(time.size):
-        exp_matrix[:, i, :] = linalg.expm(matrix*time[i])
+        exp_matrix[:, i, :] = linalg.expm(matrix * time[i])
     return exp_matrix
 
 

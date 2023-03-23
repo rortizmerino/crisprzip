@@ -195,12 +195,20 @@ def get_hybridization_energy(guide_sequence: str,
         )
 
     # Prepare target DNA and guide RNA
-    target = TargetDna.from_target_strand(
-        target_sequence=target_sequence,
-        fwd_direction=True,
-        upstream_nt=upstream_nt,
-        downstream_nt=downstream_nt
-    )
+    if target_sequence is not None:
+        target = TargetDna.from_target_strand(
+            target_sequence=target_sequence,
+            fwd_direction=True,
+            upstream_nt=upstream_nt,
+            downstream_nt=downstream_nt
+        )
+    elif nontarget_sequence is not None:
+        target = TargetDna.from_nontarget_strand(
+            nontarget_sequence=nontarget_sequence,
+            fwd_direction=True,
+            upstream_nt=upstream_nt,
+            downstream_nt=downstream_nt
+        )
     hybrid = GuideTargetHybrid(guide_sequence, target)
 
     # prepare NearestNeighborModel
@@ -431,6 +439,9 @@ class GuideTargetHybrid:
             mismatches += [0 if self.bp_map[n] == self.target.seq1[i]
                            else 1]
         return mismatches
+
+    def get_mismatch_pattern(self) -> MismatchPattern:
+        return MismatchPattern(self.find_mismatches())
 
     def __repr__(self):
         """Generates a handy string representation of the R-loop.
