@@ -11,12 +11,15 @@ Classes:
 Functions:
     format_point_mutations()
 """
+
 import json
+import os
 import random
 from pathlib import Path
 from typing import Union, List
 
 import numpy as np
+from joblib import Memory
 from numpy.random import Generator, default_rng
 from numpy.typing import ArrayLike
 
@@ -133,6 +136,83 @@ class MismatchPattern:
 # formation follows the opposite direction (for Cas9, at least),
 # making it logical to make pltos in 3'-to-5' notation. Just be careful
 # with the directionality of your sequence input.
+
+# make temporary directory to store cache
+tempdir = Path(os.environ["TMP"]).joinpath("crisprzipper")
+memory = Memory(tempdir, verbose=0)
+
+
+@memory.cache
+def get_hybridization_energy(guide_sequence: str,
+                             target_sequence: str = None,
+                             nontarget_sequence: str = None,
+                             upstream_nt: str = None,
+                             downstream_nt: str = None,
+                             fwd_direction: bool = True) -> np.ndarray:
+
+    """
+    Calculates the free energy cost associated with the progressive
+    formation of an R-loop between an RNA guide and target DNA strand.
+
+    Parameters
+    ----------
+    guide_sequence: str
+        Sequence of the RNA guide, in 3'-to-5' notation.
+    target_sequence: str
+        Sequence of the DNA target strand (=spacer), in 5'-to-3'
+        notation. If both target and nontarget sequence are specified
+        target sequence overrules the other.
+    nontarget_sequence: str
+        Sequence of the DNA nontarget strand (=protospacer), in 5'-to-3'
+        notation.
+    upstream_nt: str
+        Nucleotide that is positioned at the 5' side of the target strand.
+        Corresponds to the 3rd nucleotide in the PAM motif.
+    downstream_nt: str
+        Nucleotide that is positioned at the 3' side of the target strand.
+    fwd_direction: bool
+        True by default. If False, all directionality is reversed and the
+        upstream and downstream nucleotides are swapped.
+
+    Returns
+    -------
+    hybridization_energy: np.ndarray
+        Free energies required to create an R-loop.
+
+    """
+
+    # Recursively calling the same function for opposite directionality
+    if not fwd_direction:
+        return get_hybridization_energy(
+            guide_sequence=guide_sequence[::-1],
+            target_sequence=(None if target_sequence is None
+                             else target_sequence[::-1]),
+            nontarget_sequence=(None if nontarget_sequence is None
+                                else nontarget_sequence[::-1]),
+            upstream_nt=downstream_nt,
+            downstream_nt=upstream_nt,
+            fwd_direction=True
+        )
+
+    # Prepare target DNA and guide RNA
+    target = TargetDna.from_target_strand(
+        target_sequence=target_sequence,
+        fwd_direction=True,
+        upstream_nt=upstream_nt,
+        downstream_nt=downstream_nt
+    )
+    hybrid = GuideTargetHybrid(guide_sequence, target)
+
+    # prepare NearestNeighborModel
+    nnmodel = NearestNeighborModel()
+    nnmodel.load_data()
+    nnmodel.set_energy_unit("kbt")
+
+    # do calculations
+    hybridization_energy = nnmodel.get_hybridization_energy(hybrid)
+
+    return hybridization_energy
+
 
 class TargetDna:
     """
