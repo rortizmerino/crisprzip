@@ -98,6 +98,9 @@ class MismatchPattern:
         """Alternative constructor. Uses 1-based indexing by default. """
         array = np.zeros(guide_length)
 
+        if mm_pos_list is None:
+            mm_pos_list = []
+
         if not zero_based_index:
             mm_pos_list = [x - 1 for x in mm_pos_list]
 
