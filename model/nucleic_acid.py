@@ -261,23 +261,21 @@ class TargetDna:
                      else target_sequence[::-1])
         self.seq2 = self.__reverse_transcript(self.seq1)
 
-        if upstream_nt:
-            if fwd_direction:
-                self.upstream_bp = (upstream_nt + "-" +
-                                    self.bp_map[upstream_nt])
-            else:
-                self.upstream_bp = (downstream_nt + "-" +
-                                    self.bp_map[downstream_nt])
+        if fwd_direction and upstream_nt is not None:
+            self.upstream_bp = (upstream_nt + "-" +
+                                self.bp_map[upstream_nt])
+        elif not fwd_direction and downstream_nt is not None:
+            self.upstream_bp = (downstream_nt + "-" +
+                                self.bp_map[downstream_nt])
         else:
             self.upstream_bp = None
 
-        if downstream_nt:
-            if fwd_direction:
-                self.dnstream_bp = (downstream_nt + "-" +
-                                    self.bp_map[downstream_nt])
-            else:
-                self.dnstream_bp = (upstream_nt + "-" +
-                                    self.bp_map[upstream_nt])
+        if fwd_direction and downstream_nt is not None:
+            self.dnstream_bp = (downstream_nt + "-" +
+                                self.bp_map[downstream_nt])
+        elif not fwd_direction and upstream_nt is not None:
+            self.dnstream_bp = (upstream_nt + "-" +
+                                self.bp_map[upstream_nt])
         else:
             self.dnstream_bp = None
 
@@ -362,7 +360,7 @@ class TargetDna:
                    upstream_nt=seq[0],
                    downstream_nt=seq[-1])
 
-    def __repr__(self):
+    def __str__(self):
         """Generates a handy string representation of the DNA duplex."""
 
         strand1 = self.seq1
@@ -446,7 +444,7 @@ class GuideTargetHybrid:
     def get_mismatch_pattern(self) -> MismatchPattern:
         return MismatchPattern(self.find_mismatches())
 
-    def __repr__(self):
+    def __str__(self):
         """Generates a handy string representation of the R-loop.
         Use set_rloop_state() to update this representation."""
         dna_repr = str(self.target).split('\n')
