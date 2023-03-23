@@ -120,12 +120,19 @@ class Searcher:
         )
         return dead_searcher
 
-    def probe_target(self, target_mismatches: MismatchPattern):
-        """Returns SearcherTargetComplex object"""
+    def probe_target(self, target_mismatches: MismatchPattern) \
+            -> 'SearcherTargetComplex':
         return SearcherTargetComplex(self.on_target_landscape,
                                      self.mismatch_penalties,
                                      self.internal_rates,
                                      target_mismatches)
+
+    def probe_explicit_target(self, guide_target_hybrid: GuideTargetHybrid) \
+            -> 'SearcherSequenceComplex':
+        return SearcherSequenceComplex(self.on_target_landscape,
+                                       self.mismatch_penalties,
+                                       self.internal_rates,
+                                       guide_target_hybrid)
 
     def calculate_solution_energy(self, k_on):
         """Given an on-rate, returns the effective free energy of the
