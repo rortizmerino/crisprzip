@@ -17,9 +17,10 @@ Functions:
 from typing import Union, Tuple
 
 import numpy as np
+from numba import njit, jit
 from numpy.random import Generator, default_rng
 from numpy.typing import ArrayLike
-from scipy import linalg
+from scipy import linalg, sparse
 from scipy.linalg import inv
 
 from model.tools import format_point_mutations
@@ -350,7 +351,7 @@ class SearcherTargetComplex(Searcher):
     def solve_master_equation(self, initial_condition: np.ndarray,
                               time: ArrayLike,
                               on_rate: float,
-                              rebinding=True) -> np.ndarray:
+                              rebinding=True, mode='fast') -> np.ndarray:
 
         """
         Calculates how the occupancy of the landscape states evolves by
@@ -397,9 +398,24 @@ class SearcherTargetComplex(Searcher):
         time = np.atleast_1d(time)
 
         # where the magic happens; evaluating the master equation
-        exp_matrix = _exponentiate_fast(rate_matrix, time)
-        if exp_matrix is None:  # this is a safe alternative for e
+        if mode == 'fast':
+            exp_matrix = _exponentiate_fast(rate_matrix, time)
+            if exp_matrix is None:  # this is a safe alternative for e
+                exp_matrix = _exponentiate_iterative(rate_matrix, time)
+
+        elif mode == 'numba':
+            exp_matrix = _exponentiate_compiled(rate_matrix, time)
+            if exp_matrix is None:  # this is a safe alternative for e
+                exp_matrix = _exponentiate_iterative(rate_matrix, time)
+
+        elif mode == 'iterative':
             exp_matrix = _exponentiate_iterative(rate_matrix, time)
+
+        elif mode == 'sparse':
+            exp_matrix = _exponentiate_sparse(rate_matrix, time)
+
+        else:
+            raise ValueError(f'Cannot recognize mode {mode}')
 
         # calculate occupancy: P(t) = exp(Mt) P0
         landscape_occupancy = exp_matrix.dot(initial_condition)
@@ -498,9 +514,13 @@ class SearcherTargetComplex(Searcher):
         return bound_fraction
 
 
-def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
+@njit
+def _exponentiate_compiled(matrix: np.ndarray, time: np.ndarray):
     """
     Fast method to calculate exp(M*t), by diagonalizing matrix M.
+    Uses to the Numba package (@njit) to compile "just-in-time",
+    significantly speeding up the operations.
+
     Returns None if diagnolization is problematic:
     - singular rate matrix
     - rate matrix with complex eigenvals
@@ -508,31 +528,38 @@ def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     - negative terms in exp_matrix
     """
 
+    # preallocate result matrix
+    exp_matrix = np.zeros(shape=((matrix.shape[0],
+                                  time.shape[0],
+                                  matrix.shape[1])))
+
     # 1. diagonalize M = U D U_inv
+
+    # noinspection PyBroadException
     try:
-        eigenvals, eigenvecs = linalg.eig(matrix)
-        eigenvecs_inv = linalg.inv(eigenvecs)
-    except np.linalg.LinAlgError:
+        eigenvals, eigenvecs = np.linalg.eig(matrix)
+        eigenvecs_inv = np.linalg.inv(eigenvecs)
+    except Exception:
         return None  # handles singular matrices
     if np.any(np.iscomplex(eigenvals)):
         return None  # skip rate matrices with complex eigenvalues
 
-    # 2. B = exp(Dt)
-    exponent_matrix = np.tensordot(eigenvals.real, time, axes=0)
-    if np.any(exponent_matrix > 700.):
-        return None  # prevents np.exp overflow
-    b_matrix = np.exp(exponent_matrix)
-    diag_b_matrix = (b_matrix *  # 2D b_matrix put on 3D diagonal
-                     np.repeat(np.eye(b_matrix.shape[0])[:, :, np.newaxis],
-                               b_matrix.shape[1], axis=2))
+    for i in range(time.size):
+        t = time[i]
 
-    # 3. exp(Mt) = U B U_inv = U exp(Dt) U_inv
-    exp_matrix = np.tensordot(eigenvecs.dot(diag_b_matrix),
-                              eigenvecs_inv,
-                              axes=((1,), (0,)))
+        # 2. B = exp(Dt)
+        exponent_matrix = eigenvals.real * t
+        if np.any(exponent_matrix > 700.):
+            return None  # prevents np.exp overflow
+        b_matrix = np.diag(np.exp(exponent_matrix))
 
-    if np.any(exp_matrix < -1E-3):
-        return None  # strong negative terms
+        # 3. exp(Mt) = U B U_inv = U exp(Dt) U_inv
+        distr = eigenvecs @ b_matrix @ eigenvecs_inv
+
+        exp_matrix[:, i, :] = distr
+
+        if np.any(distr < -1E-3):
+            return None  # strong negative terms
 
     return exp_matrix
 
