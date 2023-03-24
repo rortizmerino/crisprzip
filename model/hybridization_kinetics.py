@@ -17,10 +17,10 @@ Functions:
 from typing import Union, Tuple
 
 import numpy as np
-from numba import njit, jit
+from numba import njit
 from numpy.random import Generator, default_rng
 from numpy.typing import ArrayLike
-from scipy import linalg, sparse
+from scipy import linalg
 from scipy.linalg import inv
 
 from model.tools import format_point_mutations
