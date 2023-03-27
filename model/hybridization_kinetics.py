@@ -357,7 +357,8 @@ class SearcherTargetComplex(Searcher):
         """
         Calculates how the occupancy of the landscape states evolves by
         evaluating the master equation. Absorbing states (solution and
-        cleaved state) are explicitly incorporated.
+        cleaved state) are explicitly incorporated. Can vary either
+        time or on_rate but not both.
 
         Parameters
         ----------
@@ -395,6 +396,7 @@ class SearcherTargetComplex(Searcher):
         if not rebinding:
             on_rate = 0.
 
+        # determines whether to sweep time or k_on (not both)
         vary_time = (False if ((not isinstance(time, np.ndarray)) or
                                time.size == 1)
                      else True)
@@ -434,8 +436,8 @@ class SearcherTargetComplex(Searcher):
             else:
                 raise ValueError(f'Cannot recognize mode {mode}')
 
-        # VARIABLE K_ON
-        if vary_k_on:
+        # variable k_on
+        elif vary_k_on:
             # This reference rate matrix will be updated repeatedly
             ref_rate_matrix = self.get_rate_matrix(0.)
 
@@ -457,6 +459,10 @@ class SearcherTargetComplex(Searcher):
                 )
             else:
                 raise ValueError(f'Cannot recognize mode {mode}')
+
+        # This case should never be true
+        else:
+            raise Exception
 
         # Shared final maths for variable time & on_rate
 
@@ -496,21 +502,21 @@ class SearcherTargetComplex(Searcher):
         cleavage_probability = 1 / (1 + gamma.cumprod().sum())
         return cleavage_probability
 
-    def get_cleaved_fraction(self, time: ArrayLike,
-                             on_rate: float = 1E-3) -> ArrayLike:
+    def get_cleaved_fraction(self, time: Union[float, np.ndarray],
+                             on_rate: float = 1E-3) -> np.ndarray:
         """
         Returns the fraction of cleaved targets after a specified time
 
         Parameters
         ----------
-        time: array_like
+        time: Union[float, np.ndarray]
             Times at which the cleaved fraction is calculated
         on_rate: float
             Rate (Hz) with which the searcher binds the target from solution.
 
         Returns
         -------
-        cleaved_fraction: array_like
+        cleaved_fraction: np.ndarray
             Fraction of targets that is expected to be cleaved by time
             t.
         """
@@ -523,8 +529,8 @@ class SearcherTargetComplex(Searcher):
         cleaved_fraction = prob_distr.T[-1]
         return cleaved_fraction
 
-    def get_bound_fraction(self, time: ArrayLike,
-                           on_rate: Union[float, np.ndarray] = 1E-3)\
+    def get_bound_fraction(self, time: float,
+                           on_rates: Union[float, np.ndarray] = 1E-3)\
             -> np.ndarray:
         """
         Returns the fraction of bound targets after a specified time,
@@ -532,16 +538,16 @@ class SearcherTargetComplex(Searcher):
 
         Parameters
         ----------
-        time: array_like
-            Times at which the cleaved fraction is calculated
-        on_rate: Union[float, np.ndarray]
-            Rate (Hz) with which the searcher binds the target from solution.
+        time: float
+            Time at which the cleaved fraction is calculated
+        on_rates: Union[float, np.ndarray]
+            Rates (Hz) with which the searcher binds the target from solution.
 
         Returns
         -------
         cleaved_fraction: array_like
             Fraction of targets that is expected to be bound by time
-            t.
+            t and with binding rates on_rate.
         """
 
         unbound_state = np.concatenate(
@@ -553,7 +559,7 @@ class SearcherTargetComplex(Searcher):
 
         prob_distr = \
             dead_searcher_complex.solve_master_equation(unbound_state, time,
-                                                        on_rate)
+                                                        on_rates)
         bound_fraction = 1 - prob_distr.T[0]
         return bound_fraction
 
