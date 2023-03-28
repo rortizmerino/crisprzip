@@ -94,7 +94,6 @@ class Searcher:
         self.on_target_landscape = on_target_landscape
         self.mismatch_penalties = mismatch_penalties
         self.internal_rates = internal_rates
-        # self.forward_rate_array = self.__get_forward_rate_array()
 
     def get_forward_rate_array(self, k_on):
         """Turns the forward rate dictionary into proper array"""

@@ -16,6 +16,7 @@ import json
 import os
 import random
 from pathlib import Path
+from shutil import rmtree
 from typing import Union, List
 
 import numpy as np
@@ -145,6 +146,10 @@ tempdir = Path(os.environ["TMP"]).joinpath("crisprzipper")
 memory = Memory(tempdir, verbose=0)
 
 
+def clear_cache():
+    rmtree(tempdir)
+
+
 @memory.cache
 def get_hybridization_energy(guide_sequence: str,
                              target_sequence: str = None,
@@ -170,7 +175,7 @@ def get_hybridization_energy(guide_sequence: str,
         notation.
     upstream_nt: str
         Nucleotide that is positioned at the 5' side of the target strand.
-        Corresponds to the 3rd nucleotide in the PAM motif.
+        Complements the 3rd nucleotide in the PAM motif.
     downstream_nt: str
         Nucleotide that is positioned at the 3' side of the target strand.
     fwd_direction: bool
@@ -212,6 +217,9 @@ def get_hybridization_energy(guide_sequence: str,
             upstream_nt=upstream_nt,
             downstream_nt=downstream_nt
         )
+    else:
+        raise ValueError("Give either target or non-target sequence"
+                         "as an argument.")
     hybrid = GuideTargetHybrid(guide_sequence, target)
 
     # prepare NearestNeighborModel
@@ -238,10 +246,9 @@ class TargetDna:
         The nontarget strand (=protospacer), in 3'-to-5'notation
     upstream_bp: str
         The basepair upstream (5'-side) of the target strand. For Cas9,
-        corresponds to the last base of the PAM.
+        corresponds to the last basepair of the PAM.
     dnstream_bp: str
-        The basepair downstream of the target strand. For Cas9,
-        is complementary to the last base of the PAM.
+        The basepair downstream of the target strand.
 
     Methods
     -------
@@ -301,13 +308,13 @@ class TargetDna:
             direction. If False, read with 3'-to-5'.
         upstream_nt: str
             If fwd_direction is true: nucleotide at 5' side of the
-            target sequence, corresponding to 3rd PAM nucleotide.
+            target sequence, complementing the 3rd PAM nucleotide.
             If fwd_direction is false: nucleotide at the 3' side of the
             target sequence.
         downstream_nt:
             If fwd_direction is true: nucleotide at 5' side of the
             target sequence. If fwd_direction is false: nucleotide at
-            the 3' side of the target sequence, corresponding to 3rd
+            the 3' side of the target sequence, complementing the 3rd
             PAM nucleotide.
         """
 
@@ -332,14 +339,14 @@ class TargetDna:
             direction. If False, read with 5'-to-3'.
         upstream_nt: str
             If fwd_direction is true: nucleotide at 3' side of the
-            nontarget sequence, complementing the 3rd PAM nucleotide.
+            nontarget sequence, corresponding to the 3rd PAM nucleotide.
             If fwd_direction is false: nucleotide at the 5' side of the
             nontarget sequence.
         downstream_nt:
             If fwd_direction is true: nucleotide at 5' side of the
             nontarget sequence. If fwd_direction is false: nucleotide at
-            the 3' side of the nontarget sequence, complementing to 3rd
-            PAM nucleotide.
+            the 3' side of the nontarget sequence, corresponding to the
+            3rd PAM nucleotide.
         """
 
         target_sequence = cls.__reverse_transcript(nontarget_sequence)
