@@ -4,6 +4,7 @@ It defines the basic properties of a CRISPR(-like) searcher and uses
 these to simulate its dynamics. It also has visualization functionality.
 
 Classes:
+    MismatchPattern
     Searcher
     SearcherTargetComplex(Searcher)
     CoarseGrainedComplex(SearcherTargetComplex)
@@ -13,9 +14,10 @@ Functions:
     coarse_grain_landscape(searcher_target_complex, itermediate_range=(7, 14))
 """
 
-from typing import Tuple
+from typing import Union, Tuple
 
 import numpy as np
+from numba import njit
 from numpy.typing import ArrayLike
 from scipy import linalg
 from scipy.linalg import inv
@@ -266,14 +268,15 @@ class SearcherTargetComplex(Searcher):
         return rate_matrix
 
     def solve_master_equation(self, initial_condition: np.ndarray,
-                              time: ArrayLike,
-                              on_rate: float,
-                              rebinding=True) -> np.ndarray:
+                              time: Union[float, np.ndarray],
+                              on_rate: Union[float, np.ndarray],
+                              rebinding=True, mode='fast') -> np.ndarray:
 
         """
         Calculates how the occupancy of the landscape states evolves by
         evaluating the master equation. Absorbing states (solution and
-        cleaved state) are explicitly incorporated.
+        cleaved state) are explicitly incorporated. Can vary either
+        time or on_rate but not both.
 
         Parameters
         ----------
@@ -281,13 +284,18 @@ class SearcherTargetComplex(Searcher):
             Vector showing the initial occupancy on the hybridization
             landscape. Has length guide_length+3 (if PAM_detection is
             true), and should sum to 1.
-        time: array_like
+        time: Union[float, np.ndarray]
             Times at which the master equation is evaluated.
-        on_rate: float
+        on_rate: Union[float, np.ndarray]
             Rate (Hz) with which the searcher binds the target from solution.
         rebinding: bool
             If true, on-rate is left intact, if false, on-rate is set
             to zero and solution state becomes absorbing.
+        mode: str
+            If 'fast' (default), uses Numba implementation to do fast
+            matrix exponentiation. If 'iterative', uses the
+            (~20x slower) iterative procedure. Whenever the fast
+            implementation breaks down, falls back to the iterative.
 
         Returns
         -------
@@ -301,23 +309,80 @@ class SearcherTargetComplex(Searcher):
         if initial_condition.size != (3 + self.on_target_landscape.size):
             raise ValueError('Initial condition should be of same length as'
                              'hybridization landscape')
-        rate_matrix = self.get_rate_matrix(on_rate)
 
         # if rebinding is prohibited, on-rate should be zero
         if not rebinding:
-            rate_matrix[:, 0] = 0
+            on_rate = 0.
 
-        # trivial case
-        if time is int(0):
-            return initial_condition
+        # determines whether to sweep time or k_on (not both)
+        vary_time = (False if ((not isinstance(time, np.ndarray)) or
+                               time.size == 1)
+                     else True)
+        vary_k_on = (False if ((not isinstance(on_rate, np.ndarray)) or
+                               on_rate.size == 1)
+                     else True)
 
-        # making sure that time is a 1d ndarray
-        time = np.atleast_1d(time)
+        # variable time and k_on: no support (yet)
+        if vary_time and vary_k_on:
+            raise ValueError("Cannot iterate over both time and k_on.")
 
-        # where the magic happens; evaluating the master equation
-        exp_matrix = _exponentiate_fast(rate_matrix, time)
-        if exp_matrix is None:  # this is a safe alternative for e
-            exp_matrix = _exponentiate_iterative(rate_matrix, time)
+        # unique time & k_on: handle as variable time
+        if not (vary_time or vary_k_on):
+            vary_time = True
+
+        # variable time
+        if vary_time:
+            rate_matrix = self.get_rate_matrix(on_rate)
+
+            # trivial case
+            if not isinstance(time, np.ndarray) and np.isclose(time, 0.):
+                return initial_condition
+
+            # making sure that time is a 1d ndarray
+            time = np.atleast_1d(time)
+
+            # where the magic happens; evaluating the master equation
+            if mode == 'fast':
+                exp_matrix = _exponentiate_fast(rate_matrix, time)
+
+                # this is a safe alternative for exponentiate_fast
+                if exp_matrix is None:
+                    exp_matrix = _exponentiate_iterative(rate_matrix, time)
+
+            elif mode == 'iterative':
+                exp_matrix = _exponentiate_iterative(rate_matrix, time)
+            else:
+                raise ValueError(f'Cannot recognize mode {mode}')
+
+        # variable k_on
+        elif vary_k_on:
+            # This reference rate matrix will be updated repeatedly
+            ref_rate_matrix = self.get_rate_matrix(0.)
+
+            # where the magic happens; evaluating the master equation
+            if mode == 'fast':
+                exp_matrix = _exponentiate_fast_var_onrate(
+                    ref_rate_matrix, float(time), on_rate
+                )
+
+                # this is a safe alternative for exponentiate_fast
+                if exp_matrix is None:
+                    exp_matrix = _exponentiate_iterative_var_onrate(
+                        ref_rate_matrix, time, on_rate
+                    )
+
+            elif mode == 'iterative':
+                exp_matrix = _exponentiate_iterative_var_onrate(
+                    ref_rate_matrix, time, on_rate
+                )
+            else:
+                raise ValueError(f'Cannot recognize mode {mode}')
+
+        # This case should never be true
+        else:
+            raise Exception
+
+        # Shared final maths for variable time & on_rate
 
         # calculate occupancy: P(t) = exp(Mt) P0
         landscape_occupancy = exp_matrix.dot(initial_condition)
@@ -355,21 +420,21 @@ class SearcherTargetComplex(Searcher):
         cleavage_probability = 1 / (1 + gamma.cumprod().sum())
         return cleavage_probability
 
-    def get_cleaved_fraction(self, time: ArrayLike,
-                             on_rate: float = 1E-3) -> ArrayLike:
+    def get_cleaved_fraction(self, time: Union[float, np.ndarray],
+                             on_rate: float = 1E-3) -> np.ndarray:
         """
         Returns the fraction of cleaved targets after a specified time
 
         Parameters
         ----------
-        time: array_like
+        time: Union[float, np.ndarray]
             Times at which the cleaved fraction is calculated
         on_rate: float
             Rate (Hz) with which the searcher binds the target from solution.
 
         Returns
         -------
-        cleaved_fraction: array_like
+        cleaved_fraction: np.ndarray
             Fraction of targets that is expected to be cleaved by time
             t.
         """
@@ -382,24 +447,25 @@ class SearcherTargetComplex(Searcher):
         cleaved_fraction = prob_distr.T[-1]
         return cleaved_fraction
 
-    def get_bound_fraction(self, time: ArrayLike,
-                           on_rate: float = 1E-3) -> ArrayLike:
+    def get_bound_fraction(self, time: float,
+                           on_rates: Union[float, np.ndarray] = 1E-3)\
+            -> np.ndarray:
         """
         Returns the fraction of bound targets after a specified time,
         assuming that searcher is catalytically dead/inactive.
 
         Parameters
         ----------
-        time: array_like
-            Times at which the cleaved fraction is calculated
-        on_rate: float
-            Rate (Hz) with which the searcher binds the target from solution.
+        time: float
+            Time at which the cleaved fraction is calculated
+        on_rates: Union[float, np.ndarray]
+            Rates (Hz) with which the searcher binds the target from solution.
 
         Returns
         -------
         cleaved_fraction: array_like
             Fraction of targets that is expected to be bound by time
-            t.
+            t and with binding rates on_rate.
         """
 
         unbound_state = np.concatenate(
@@ -411,7 +477,7 @@ class SearcherTargetComplex(Searcher):
 
         prob_distr = \
             dead_searcher_complex.solve_master_equation(unbound_state, time,
-                                                        on_rate)
+                                                        on_rates)
         bound_fraction = 1 - prob_distr.T[0]
         return bound_fraction
 
@@ -442,9 +508,13 @@ class SearcherSequenceComplex(SearcherTargetComplex):
         return protein_na_energy + internal_na_energy
 
 
+@njit
 def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     """
     Fast method to calculate exp(M*t), by diagonalizing matrix M.
+    Uses to the Numba package (@njit) to compile "just-in-time",
+    significantly speeding up the operations.
+
     Returns None if diagnolization is problematic:
     - singular rate matrix
     - rate matrix with complex eigenvals
@@ -452,31 +522,82 @@ def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     - negative terms in exp_matrix
     """
 
+    # preallocate result matrix
+    exp_matrix = np.zeros(shape=((matrix.shape[0],
+                                  time.shape[0],
+                                  matrix.shape[1])))
+
     # 1. diagonalize M = U D U_inv
+
+    # noinspection PyBroadException
     try:
-        eigenvals, eigenvecs = linalg.eig(matrix)
-        eigenvecs_inv = linalg.inv(eigenvecs)
-    except np.linalg.LinAlgError:
+        eigenvals, eigenvecs = np.linalg.eig(matrix)
+        eigenvecs_inv = np.linalg.inv(eigenvecs)
+    except Exception:
         return None  # handles singular matrices
     if np.any(np.iscomplex(eigenvals)):
         return None  # skip rate matrices with complex eigenvalues
 
-    # 2. B = exp(Dt)
-    exponent_matrix = np.tensordot(eigenvals.real, time, axes=0)
-    if np.any(exponent_matrix > 700.):
-        return None  # prevents np.exp overflow
-    b_matrix = np.exp(exponent_matrix)
-    diag_b_matrix = (b_matrix *  # 2D b_matrix put on 3D diagonal
-                     np.repeat(np.eye(b_matrix.shape[0])[:, :, np.newaxis],
-                               b_matrix.shape[1], axis=2))
+    for i in range(time.size):
+        t = time[i]
 
-    # 3. exp(Mt) = U B U_inv = U exp(Dt) U_inv
-    exp_matrix = np.tensordot(eigenvecs.dot(diag_b_matrix),
-                              eigenvecs_inv,
-                              axes=((1,), (0,)))
+        # 2. B = exp(Dt)
+        exponent_matrix = eigenvals.real * t
+        if np.any(exponent_matrix > 700.):
+            return None  # prevents np.exp overflow
+        b_matrix = np.diag(np.exp(exponent_matrix))
 
-    if np.any(exp_matrix < -1E-3):
-        return None  # strong negative terms
+        # 3. exp(Mt) = U B U_inv = U exp(Dt) U_inv
+        distr = eigenvecs @ b_matrix @ eigenvecs_inv
+
+        exp_matrix[:, i, :] = distr
+
+        if np.any(distr < -1E-3):
+            return None  # strong negative terms
+
+    return exp_matrix
+
+
+@njit
+def _update_rate_matrix(ref_rate_matrix: np.ndarray, on_rate: float) \
+        -> np.ndarray:
+    """Takes a reference rate matrix and updates only the on_rate.
+    This function supports the compilation of the function below."""
+
+    rate_matrix = ref_rate_matrix.copy()
+    rate_matrix[0, 0] = -on_rate
+    rate_matrix[1, 0] = on_rate
+    return rate_matrix
+
+
+@njit
+def _exponentiate_fast_var_onrate(ref_matrix: np.ndarray, time: float,
+                                  on_rates: np.ndarray):
+    """
+    Fast method to calculate exp(M*t), by diagonalizing matrix M.
+    Uses to the Numba package (@njit) to compile "just-in-time",
+    significantly speeding up the operations.
+
+    Returns None if diagnolization is problematic:
+    - singular rate matrix
+    - rate matrix with complex eigenvals
+    - overflow in the exponentiatial
+    - negative terms in exp_matrix
+    """
+
+    # preallocate result matrix
+    exp_matrix = np.zeros(shape=((ref_matrix.shape[0],
+                                  on_rates.shape[0],
+                                  ref_matrix.shape[1])))
+
+    for i, k_on in enumerate(on_rates):
+        rate_matrix = _update_rate_matrix(ref_matrix, k_on)
+
+        partial_result = _exponentiate_fast(rate_matrix, np.array([time]))
+        if partial_result is None:
+            return None
+        else:
+            exp_matrix[:, i, :] = partial_result[:, 0, :]
 
     return exp_matrix
 
@@ -490,6 +611,21 @@ def _exponentiate_iterative(matrix: np.ndarray, time: np.ndarray):
                                   matrix.shape[1])))
     for i in range(time.size):
         exp_matrix[:, i, :] = linalg.expm(matrix * time[i])
+    return exp_matrix
+
+
+def _exponentiate_iterative_var_onrate(ref_matrix: np.ndarray,
+                                       time: float, on_rates: np.ndarray):
+    """The safer method to calculate exp(M*t), looping over the values
+    in on_rate and using the scipy function for matrix exponentiation."""
+    exp_matrix = np.zeros(shape=((ref_matrix.shape[0],
+                                  on_rates.shape[0],
+                                  ref_matrix.shape[1])))
+    for i, k_on in enumerate(on_rates):
+        rate_matrix = _update_rate_matrix(
+            ref_matrix, k_on
+        )
+        exp_matrix[:, i, :] = linalg.expm(rate_matrix * time)
     return exp_matrix
 
 
