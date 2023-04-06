@@ -564,7 +564,7 @@ class SearcherTargetComplex(Searcher):
         return bound_fraction
 
 
-@njit
+@njit(cache=True)
 def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     """
     Fast method to calculate exp(M*t), by diagonalizing matrix M.
@@ -614,7 +614,7 @@ def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     return exp_matrix
 
 
-@njit
+@njit(cache=True)
 def _update_rate_matrix(ref_rate_matrix: np.ndarray, on_rate: float) \
         -> np.ndarray:
     """Takes a reference rate matrix and updates only the on_rate.
@@ -626,7 +626,7 @@ def _update_rate_matrix(ref_rate_matrix: np.ndarray, on_rate: float) \
     return rate_matrix
 
 
-@njit
+@njit(cache=True)
 def _exponentiate_fast_var_onrate(ref_matrix: np.ndarray, time: float,
                                   on_rates: np.ndarray):
     """
