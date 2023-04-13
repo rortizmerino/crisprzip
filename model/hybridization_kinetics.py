@@ -447,7 +447,7 @@ class SearcherTargetComplex(Searcher):
         return cleaved_fraction
 
     def get_bound_fraction(self, time: float,
-                           on_rates: Union[float, np.ndarray] = 1E-3)\
+                           on_rate: Union[float, np.ndarray] = 1E-3) \
             -> np.ndarray:
         """
         Returns the fraction of bound targets after a specified time,
@@ -457,7 +457,7 @@ class SearcherTargetComplex(Searcher):
         ----------
         time: float
             Time at which the cleaved fraction is calculated
-        on_rates: Union[float, np.ndarray]
+        on_rate: Union[float, np.ndarray]
             Rates (Hz) with which the searcher binds the target from solution.
 
         Returns
@@ -476,7 +476,7 @@ class SearcherTargetComplex(Searcher):
 
         prob_distr = \
             dead_searcher_complex.solve_master_equation(unbound_state, time,
-                                                        on_rates)
+                                                        on_rate)
         bound_fraction = 1 - prob_distr.T[0]
         return bound_fraction
 
@@ -507,7 +507,7 @@ class SearcherSequenceComplex(SearcherTargetComplex):
         return protein_na_energy + internal_na_energy
 
 
-@njit
+@njit(cache=True)
 def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     """
     Fast method to calculate exp(M*t), by diagonalizing matrix M.
@@ -557,7 +557,7 @@ def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
     return exp_matrix
 
 
-@njit
+@njit(cache=True)
 def _update_rate_matrix(ref_rate_matrix: np.ndarray, on_rate: float) \
         -> np.ndarray:
     """Takes a reference rate matrix and updates only the on_rate.
@@ -569,7 +569,7 @@ def _update_rate_matrix(ref_rate_matrix: np.ndarray, on_rate: float) \
     return rate_matrix
 
 
-@njit
+@njit(cache=True)
 def _exponentiate_fast_var_onrate(ref_matrix: np.ndarray, time: float,
                                   on_rates: np.ndarray):
     """
