@@ -142,7 +142,17 @@ class MismatchPattern:
 # with the directionality of your sequence input.
 
 # make temporary directory to store cache
-tempdir = Path(os.environ["TMP"]).joinpath("crisprzipper")
+def get_tempdir():
+    environ = os.environ
+    if "TMP" in environ:
+        return Path(os.environ["TMP"]).joinpath("crisprzipper")
+    elif "TMPDIR" in environ:
+        return Path(os.environ["TMPDIR"]).joinpath("crisprzipper")
+    else:
+        return Path("/tmp/crisprzipper")
+
+
+tempdir = get_tempdir()
 memory = Memory(tempdir, verbose=0)
 
 
