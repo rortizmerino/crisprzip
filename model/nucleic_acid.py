@@ -152,7 +152,13 @@ def get_tempdir():
         return Path("/tmp/crisprzipper")
 
 
-tempdir = get_tempdir()
+def get_root_dir():
+    # Assumed folder structure: root_dir/crisprzipper/model/nucleic_acid.py
+    return Path(__file__).absolute().parents[2]
+
+
+# tempdir = get_tempdir()
+tempdir = get_root_dir().joinpath("crisprzipper")
 memory = Memory(tempdir, verbose=0)
 
 
