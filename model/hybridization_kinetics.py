@@ -506,6 +506,13 @@ class SearcherSequenceComplex(SearcherTargetComplex):
         )
         return protein_na_energy + internal_na_energy
 
+    def generate_dead_clone(self):
+        """Returns SearcherSequenceComplex object with zero catalytic
+        activity"""
+        dead_searcher = Searcher.generate_dead_clone(self)
+        dead_complex = dead_searcher.probe_explicit_target(self.hybrid)
+        return dead_complex
+
 
 @njit(cache=True)
 def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
