@@ -13,7 +13,7 @@ from typing import Tuple
 import numpy as np
 from scipy.linalg import inv
 
-from .hybridization_kinetics import SearcherTargetComplex
+from .kinetics import SearcherTargetComplex
 
 
 def coarse_grain_landscape(searcher_target_complex: SearcherTargetComplex,

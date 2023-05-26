@@ -1,7 +1,7 @@
 """
-The hybridization_kinetics module is the core of the CRISPRzipper model.
+The kinetics module is the core of the CRISPRzipper model.
 It defines the basic properties of a CRISPR(-like) searcher and uses
-these to simulate its dynamics.
+these to simulate its R-loop hybridization dynamics.
 
 Classes:
     MismatchPattern
@@ -19,6 +19,7 @@ from numpy.random import Generator, default_rng
 from numpy.typing import ArrayLike
 
 from .matrix_expon import *
+
 
 class MismatchPattern:
     """A class indicating the positions of the mismatched
