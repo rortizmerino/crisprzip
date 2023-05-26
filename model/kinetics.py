@@ -1,27 +1,111 @@
 """
-The hybridization_kinetics module is the core of the CRISPRzipper model.
+The kinetics module is the core of the CRISPRzipper model.
 It defines the basic properties of a CRISPR(-like) searcher and uses
-these to simulate its dynamics. It also has visualization functionality.
+these to simulate its R-loop hybridization dynamics.
 
 Classes:
     MismatchPattern
     Searcher
     SearcherTargetComplex(Searcher)
-    CoarseGrainedComplex(SearcherTargetComplex)
-    SearcherPlotter
-
-Functions:
-    coarse_grain_landscape(searcher_target_complex, itermediate_range=(7, 14))
 """
 
-from typing import Union, Tuple
+from typing import *
 
 import numpy as np
 from numba import njit
 from numpy.typing import ArrayLike
-from scipy import linalg
-from scipy.linalg import inv
 
+from .matrix_expon import *
+from .nucleic_acid import MismatchPattern, GuideTargetHybrid, \
+    get_hybridization_energy
+
+class MismatchPattern:
+    """A class indicating the positions of the mismatched
+    bases in a target sequence. Assumes a 3'-to-5' DNA direction.
+
+    Attributes
+    ----------
+    pattern: np.ndarray
+        Array with True indicating mismatched basepairs
+    length: int
+        Guide length
+    mm_num: int
+        Number of mismatches in the array
+    is_on_target: bool
+        Indicates whether the array is the on-target array
+
+    Methods
+    -------
+    from_string(mm_array_string)
+        Alternative constructor, reading strings
+    from_mm_pos(guide_length[, mm_pos_list])
+        Alternative constructor, based on mismatch positions
+    make_random(guide_length, mm_num[, rng])
+        Create mismatch array with randomly positioned mismatches
+    get_mm_pos()
+        Gives positions of the mismatches
+
+    """
+
+    def __init__(self, array: np.typing.ArrayLike):
+        array = np.array(array)
+        if array.ndim != 1:
+            raise ValueError('Array should be 1-dimensional')
+        if not (np.all((array == 0) | (array == 1)) or
+                np.all((array is False) | (array is True)) or
+                np.all((np.isclose(array, 0.0)) | (np.isclose(array, 0.0)))):
+            raise ValueError('Array should only contain 0 and 1 values')
+
+        self.pattern = np.asarray(array, dtype='bool')
+        self.length = self.pattern.size
+        self.mm_num = int(np.sum(self.pattern))
+        self.is_on_target = self.mm_num == 0
+
+    def __repr__(self):
+        return "".join(["1" if mm else "0" for mm in self.pattern])
+
+    def __str__(self):
+        return self.__repr__()
+
+    @classmethod
+    def from_string(cls, mm_array_string):
+        return cls(np.array(list(mm_array_string), dtype='int'))
+
+    @classmethod
+    def from_mm_pos(cls, guide_length: int, mm_pos_list: list = None,
+                    zero_based_index=False):
+        """Alternative constructor. Uses 1-based indexing by default. """
+        array = np.zeros(guide_length)
+
+        if not zero_based_index:
+            mm_pos_list = [x - 1 for x in mm_pos_list]
+
+        if mm_pos_list is not None:
+            array[mm_pos_list] = 1
+        return cls(array)
+
+    @classmethod
+    def from_target_sequence(cls, protospacer: str,
+                             target_sequence: str) -> 'MismatchPattern':
+        """Alternative constructor"""
+        pmut_list = format_point_mutations(protospacer, target_sequence)
+        return cls.from_mm_pos(
+            len(protospacer),
+            [int(pmut[1:3]) for pmut in pmut_list]
+        )
+
+    @classmethod
+    def make_random(cls, guide_length: int, mm_num: int,
+                    rng: Union[int, Generator] = None):
+        if type(rng) is int or rng is None:
+            rng = default_rng(rng)
+        target = np.zeros(guide_length)
+        mm_pos = rng.choice(range(20), size=mm_num, replace=False).tolist()
+        target[mm_pos] = 1
+        return cls(target)
+
+    def get_mm_pos(self):
+        return [i for i, mm in enumerate(self.pattern) if mm]
 from .nucleic_acid import MismatchPattern, GuideTargetHybrid, \
     get_hybridization_energy
 
@@ -342,14 +426,14 @@ class SearcherTargetComplex(Searcher):
 
             # where the magic happens; evaluating the master equation
             if mode == 'fast':
-                exp_matrix = _exponentiate_fast(rate_matrix, time)
+                exp_matrix = exponentiate_fast(rate_matrix, time)
 
                 # this is a safe alternative for exponentiate_fast
                 if exp_matrix is None:
-                    exp_matrix = _exponentiate_iterative(rate_matrix, time)
+                    exp_matrix = exponentiate_iterative(rate_matrix, time)
 
             elif mode == 'iterative':
-                exp_matrix = _exponentiate_iterative(rate_matrix, time)
+                exp_matrix = exponentiate_iterative(rate_matrix, time)
             else:
                 raise ValueError(f'Cannot recognize mode {mode}')
 
@@ -360,18 +444,18 @@ class SearcherTargetComplex(Searcher):
 
             # where the magic happens; evaluating the master equation
             if mode == 'fast':
-                exp_matrix = _exponentiate_fast_var_onrate(
+                exp_matrix = exponentiate_fast_var_onrate(
                     ref_rate_matrix, float(time), on_rate
                 )
 
                 # this is a safe alternative for exponentiate_fast
                 if exp_matrix is None:
-                    exp_matrix = _exponentiate_iterative_var_onrate(
+                    exp_matrix = exponentiate_iterative_var_onrate(
                         ref_rate_matrix, time, on_rate
                     )
 
             elif mode == 'iterative':
-                exp_matrix = _exponentiate_iterative_var_onrate(
+                exp_matrix = exponentiate_iterative_var_onrate(
                     ref_rate_matrix, time, on_rate
                 )
             else:
@@ -512,277 +596,3 @@ class SearcherSequenceComplex(SearcherTargetComplex):
         dead_searcher = Searcher.generate_dead_clone(self)
         dead_complex = dead_searcher.probe_explicit_target(self.hybrid)
         return dead_complex
-
-
-@njit(cache=True)
-def _exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
-    """
-    Fast method to calculate exp(M*t), by diagonalizing matrix M.
-    Uses to the Numba package (@njit) to compile "just-in-time",
-    significantly speeding up the operations.
-
-    Returns None if diagnolization is problematic:
-    - singular rate matrix
-    - rate matrix with complex eigenvals
-    - overflow in the exponentiatial
-    - negative terms in exp_matrix
-    """
-
-    # preallocate result matrix
-    exp_matrix = np.zeros(shape=((matrix.shape[0],
-                                  time.shape[0],
-                                  matrix.shape[1])))
-
-    # 1. diagonalize M = U D U_inv
-
-    # noinspection PyBroadException
-    try:
-        eigenvals, eigenvecs = np.linalg.eig(matrix)
-        eigenvecs_inv = np.linalg.inv(eigenvecs)
-    except Exception:
-        return None  # handles singular matrices
-    if np.any(np.iscomplex(eigenvals)):
-        return None  # skip rate matrices with complex eigenvalues
-
-    for i in range(time.size):
-        t = time[i]
-
-        # 2. B = exp(Dt)
-        exponent_matrix = eigenvals.real * t
-        if np.any(exponent_matrix > 700.):
-            return None  # prevents np.exp overflow
-        b_matrix = np.diag(np.exp(exponent_matrix))
-
-        # 3. exp(Mt) = U B U_inv = U exp(Dt) U_inv
-        distr = eigenvecs @ b_matrix @ eigenvecs_inv
-
-        exp_matrix[:, i, :] = distr
-
-        if np.any(distr < -1E-3):
-            return None  # strong negative terms
-
-    return exp_matrix
-
-
-@njit(cache=True)
-def _update_rate_matrix(ref_rate_matrix: np.ndarray, on_rate: float) \
-        -> np.ndarray:
-    """Takes a reference rate matrix and updates only the on_rate.
-    This function supports the compilation of the function below."""
-
-    rate_matrix = ref_rate_matrix.copy()
-    rate_matrix[0, 0] = -on_rate
-    rate_matrix[1, 0] = on_rate
-    return rate_matrix
-
-
-@njit(cache=True)
-def _exponentiate_fast_var_onrate(ref_matrix: np.ndarray, time: float,
-                                  on_rates: np.ndarray):
-    """
-    Fast method to calculate exp(M*t), by diagonalizing matrix M.
-    Uses to the Numba package (@njit) to compile "just-in-time",
-    significantly speeding up the operations.
-
-    Returns None if diagnolization is problematic:
-    - singular rate matrix
-    - rate matrix with complex eigenvals
-    - overflow in the exponentiatial
-    - negative terms in exp_matrix
-    """
-
-    # preallocate result matrix
-    exp_matrix = np.zeros(shape=((ref_matrix.shape[0],
-                                  on_rates.shape[0],
-                                  ref_matrix.shape[1])))
-
-    for i, k_on in enumerate(on_rates):
-        rate_matrix = _update_rate_matrix(ref_matrix, k_on)
-
-        partial_result = _exponentiate_fast(rate_matrix, np.array([time]))
-        if partial_result is None:
-            return None
-        else:
-            exp_matrix[:, i, :] = partial_result[:, 0, :]
-
-    return exp_matrix
-
-
-def _exponentiate_iterative(matrix: np.ndarray, time: np.ndarray):
-    """The safer method to calculate exp(M*t), looping over the values
-    in t and using the scipy function for matrix exponentiation."""
-
-    exp_matrix = np.zeros(shape=((matrix.shape[0],
-                                  time.shape[0],
-                                  matrix.shape[1])))
-    for i in range(time.size):
-        exp_matrix[:, i, :] = linalg.expm(matrix * time[i])
-    return exp_matrix
-
-
-def _exponentiate_iterative_var_onrate(ref_matrix: np.ndarray,
-                                       time: float, on_rates: np.ndarray):
-    """The safer method to calculate exp(M*t), looping over the values
-    in on_rate and using the scipy function for matrix exponentiation."""
-    exp_matrix = np.zeros(shape=((ref_matrix.shape[0],
-                                  on_rates.shape[0],
-                                  ref_matrix.shape[1])))
-    for i, k_on in enumerate(on_rates):
-        rate_matrix = _update_rate_matrix(
-            ref_matrix, k_on
-        )
-        exp_matrix[:, i, :] = linalg.expm(rate_matrix * time)
-    return exp_matrix
-
-
-def coarse_grain_landscape(searcher_target_complex: SearcherTargetComplex,
-                           intermediate_range: Tuple[int] = (7, 14)):
-    """Calculates the coarse-grained rates over the two barrier regions
-    that are expected to exist in a hybridization landscape.
-
-    Parameters
-    ----------
-    searcher_target_complex: SearcherTargetComplex
-        The off-target hybridization landscape from this instance is
-        used to calculate the coarse-grained rates from
-    intermediate_range: tuple
-        The states a and b between which intermediate state is looked
-        for. The lowest-energy state in the range [a, b) is the
-        intermediate state. Default is [7, 14).
-
-    Returns
-    -------
-    coarse_grained_rates: dict
-        Dictionary containing the rates k_OI, k_IC, k_IO, k_CI
-        (Open, Intermediate, Closed). Confusingly, these have later
-        been renamed (O -> P for PAM and C -> O).
-    intermediate_id: int
-        Location of the intermediate state.
-
-    """
-    return CoarseGrainedComplex(
-        searcher_target_complex.on_target_landscape,
-        searcher_target_complex.mismatch_penalties,
-        searcher_target_complex.internal_rates,
-        searcher_target_complex.target_mismatches
-    ).get_coarse_grained_rates(intermediate_range)
-
-
-class CoarseGrainedComplex(SearcherTargetComplex):
-    """Object to calculate the coarse grained rates over the barrier
-    regions in a SearcherTargetComplex hybridization landscape. This
-    object is the backend to the calculation, the recommended usage
-    is the function coarse_grain_landscape defined above."""
-
-    def get_coarse_grained_rates(self, intermediate_range=(7, 14)):
-        """
-        Calculates the coarse-grained rates between the open (=PAM),
-        intermediate, and closed (=bound) state. Assumes PAM sensing.
-
-        Parameters
-        ----------
-        intermediate_range: tuple
-            The states a and b between which intermediate state is looked
-            for. The lowest-energy state in the range [a, b) is the
-            intermediate state. Default is [7, 14).
-
-        Returns
-        -------
-        cg_rates: dict
-            Dictionary containging the rates k_OI, k_IC, k_IO, k_CI
-            (Open, Intermediate, Closed). Confusingly, these have later
-            been renamed (O -> P for PAM and C -> O).
-        intermediate_id: int
-            Location of the intermediate state.
-
-        """
-        # Because the target landscape is defined to have length N,
-        # instead of N+1, we add one to the intermediate id
-        intermediate_id = 1 + (
-                np.argmin(self.off_target_landscape[intermediate_range[0]:
-                                                    intermediate_range[1]]) +
-                intermediate_range[0]
-        )
-
-        # These follow the old definitions, so have N+1 nonzero energy states
-        # and 2 zero energy states (solution / cleaved)
-        kf = self.get_forward_rate_array(k_on=0.)
-        kb = self.backward_rate_array
-
-        # From open (=PAM) to intermediate
-        k_oi = self.__calculate_effective_rate(kf, kb,
-                                               start=1,
-                                               stop=1 + intermediate_id)
-
-        # From intermediate to closed (=bound)
-        k_ic = self.__calculate_effective_rate(kf, kb,
-                                               start=1 + intermediate_id,
-                                               stop=len(kf) - 2)
-
-        # From intermediate to open (=PAM)
-        k_io = self.__calculate_effective_rate(kb[::-1], kf[::-1],
-                                               start=(len(kf) - 1) - (
-                                                       1 + intermediate_id),
-                                               stop=(len(kf) - 1) - 1)
-
-        # From closed (=bound) to intermediate
-        k_ci = self.__calculate_effective_rate(kb[::-1], kf[::-1],
-                                               start=1,
-                                               stop=(len(kf) - 1) - (
-                                                       1 + intermediate_id))
-
-        cg_rates = {'k_OI': k_oi, 'k_IC': k_ic, 'k_IO': k_io, 'k_CI': k_ci}
-        return cg_rates, intermediate_id
-
-    @classmethod
-    def __calculate_effective_rate(cls, forward_rate_array,
-                                   backward_rate_array, start=0, stop=None):
-        """Calculates the effective rate from state start to state stop.
-        This calculation is from the old supplementary materials of
-        Eslami et al."""
-
-        partial_k = cls.__setup_partial_rate_matrix(forward_rate_array,
-                                                    backward_rate_array,
-                                                    start=start, stop=stop,
-                                                    final_state_absorbs=True)
-
-        initial_state = np.zeros(partial_k.shape[0] - 1)
-        initial_state[0] = 1.
-
-        # Eslami et al.
-        eff_rate = np.matmul(-inv(partial_k[:-1, :-1]),
-                             initial_state).sum() ** -1
-
-        return eff_rate
-
-    @staticmethod
-    def __setup_partial_rate_matrix(forward_rate_array: np.ndarray,
-                                    backward_rate_array: np.ndarray,
-                                    start: int = 0, stop: int = None,
-                                    final_state_absorbs=False) -> np.ndarray:
-        """Returns a rate matrix of the states between start and stop
-        (including state 'stop'). Rate matrix set up is just like that in
-        the SearcherTargetComplex class. Stop=None gives everything up to
-        the final state. Final_state_absorbs=True makes the final state
-        absorbing."""
-
-        if stop is None:
-            partial_kf = forward_rate_array.copy()[start:]
-            partial_kb = backward_rate_array.copy()[start:]
-        else:
-            partial_kf = forward_rate_array.copy()[start:stop + 1]
-            partial_kb = backward_rate_array.copy()[start:stop + 1]
-
-        partial_kb[0] = 0.
-        partial_kf[-1] = 0.
-        if final_state_absorbs:
-            partial_kb[-1] = 0.
-
-        diagonal1 = -(partial_kf + partial_kb)
-        diagonal2 = partial_kb[1:]
-        diagonal3 = partial_kf[:-1]
-        rate_matrix = (np.diag(diagonal1, k=0) +
-                       np.diag(diagonal2, k=1) +
-                       np.diag(diagonal3, k=-1))
-
-        return rate_matrix
