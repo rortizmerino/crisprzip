@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CRISPRzip-model"
+version = "1.0.0"
 description = "Kinetic model of target interrogation by CRISPR-Cas searcher"
 authors = [
     {name = "Hidde Offerhaus", email = "H.S.Offerhaus@tudelft.nl"}
 ]
 readme = "README.md"
 license = {file = "LICENSE"}
-requires-python = "=3.8"
+requires-python = "==3.8"
 keywords = []
 dependencies = [
     "numba==0.56.4",
