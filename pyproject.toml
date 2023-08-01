@@ -4,7 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CRISPRzip-model"
-version = "1.0.0"
 description = "Kinetic model of target interrogation by CRISPR-Cas searcher"
 authors = [
     {name = "Hidde Offerhaus", email = "H.S.Offerhaus@tudelft.nl"}
