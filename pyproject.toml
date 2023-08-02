@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "CRISPRzip-model"
+name = "crisprzip-model"
 description = "Kinetic model of target interrogation by CRISPR-Cas searcher"
 authors = [
     {name = "Hidde Offerhaus", email = "H.S.Offerhaus@tudelft.nl"}
