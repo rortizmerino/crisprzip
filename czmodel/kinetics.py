@@ -12,100 +12,9 @@ Classes:
 from typing import *
 
 import numpy as np
-from numba import njit
 from numpy.typing import ArrayLike
 
 from .matrix_expon import *
-from .nucleic_acid import MismatchPattern, GuideTargetHybrid, \
-    get_hybridization_energy
-
-class MismatchPattern:
-    """A class indicating the positions of the mismatched
-    bases in a target sequence. Assumes a 3'-to-5' DNA direction.
-
-    Attributes
-    ----------
-    pattern: np.ndarray
-        Array with True indicating mismatched basepairs
-    length: int
-        Guide length
-    mm_num: int
-        Number of mismatches in the array
-    is_on_target: bool
-        Indicates whether the array is the on-target array
-
-    Methods
-    -------
-    from_string(mm_array_string)
-        Alternative constructor, reading strings
-    from_mm_pos(guide_length[, mm_pos_list])
-        Alternative constructor, based on mismatch positions
-    make_random(guide_length, mm_num[, rng])
-        Create mismatch array with randomly positioned mismatches
-    get_mm_pos()
-        Gives positions of the mismatches
-
-    """
-
-    def __init__(self, array: np.typing.ArrayLike):
-        array = np.array(array)
-        if array.ndim != 1:
-            raise ValueError('Array should be 1-dimensional')
-        if not (np.all((array == 0) | (array == 1)) or
-                np.all((array is False) | (array is True)) or
-                np.all((np.isclose(array, 0.0)) | (np.isclose(array, 0.0)))):
-            raise ValueError('Array should only contain 0 and 1 values')
-
-        self.pattern = np.asarray(array, dtype='bool')
-        self.length = self.pattern.size
-        self.mm_num = int(np.sum(self.pattern))
-        self.is_on_target = self.mm_num == 0
-
-    def __repr__(self):
-        return "".join(["1" if mm else "0" for mm in self.pattern])
-
-    def __str__(self):
-        return self.__repr__()
-
-    @classmethod
-    def from_string(cls, mm_array_string):
-        return cls(np.array(list(mm_array_string), dtype='int'))
-
-    @classmethod
-    def from_mm_pos(cls, guide_length: int, mm_pos_list: list = None,
-                    zero_based_index=False):
-        """Alternative constructor. Uses 1-based indexing by default. """
-        array = np.zeros(guide_length)
-
-        if not zero_based_index:
-            mm_pos_list = [x - 1 for x in mm_pos_list]
-
-        if mm_pos_list is not None:
-            array[mm_pos_list] = 1
-        return cls(array)
-
-    @classmethod
-    def from_target_sequence(cls, protospacer: str,
-                             target_sequence: str) -> 'MismatchPattern':
-        """Alternative constructor"""
-        pmut_list = format_point_mutations(protospacer, target_sequence)
-        return cls.from_mm_pos(
-            len(protospacer),
-            [int(pmut[1:3]) for pmut in pmut_list]
-        )
-
-    @classmethod
-    def make_random(cls, guide_length: int, mm_num: int,
-                    rng: Union[int, Generator] = None):
-        if type(rng) is int or rng is None:
-            rng = default_rng(rng)
-        target = np.zeros(guide_length)
-        mm_pos = rng.choice(range(20), size=mm_num, replace=False).tolist()
-        target[mm_pos] = 1
-        return cls(target)
-
-    def get_mm_pos(self):
-        return [i for i, mm in enumerate(self.pattern) if mm]
 from .nucleic_acid import MismatchPattern, GuideTargetHybrid, \
     get_hybridization_energy
 
@@ -212,17 +121,31 @@ class Searcher:
                                      self.internal_rates,
                                      target_mismatches)
 
-    def probe_explicit_target(self, guide_target_hybrid: GuideTargetHybrid) \
+    def calculate_solution_energy(self, k_on):
+        """Given an on-rate, returns the effective free energy of the
+        solution state (under the assumption of detailed balance)"""
+        return np.log(k_on / self.internal_rates['k_off'])
+
+
+class BareSearcher(Searcher):
+
+    @classmethod
+    def from_searcher(cls, searcher):
+        landscape = searcher.on_target_landscape
+        ontarget_na_energies = np.zeros_like(landscape)
+        return cls(
+            landscape - ontarget_na_energies,
+            searcher.mismatch_penalties,
+            searcher.internal_rates,
+            searcher.pam_detection
+        )
+
+    def probe_target(self, guide_target_hybrid: GuideTargetHybrid) \
             -> 'SearcherSequenceComplex':
         return SearcherSequenceComplex(self.on_target_landscape,
                                        self.mismatch_penalties,
                                        self.internal_rates,
                                        guide_target_hybrid)
-
-    def calculate_solution_energy(self, k_on):
-        """Given an on-rate, returns the effective free energy of the
-        solution state (under the assumption of detailed balance)"""
-        return np.log(k_on / self.internal_rates['k_off'])
 
 
 class SearcherTargetComplex(Searcher):
@@ -565,7 +488,7 @@ class SearcherTargetComplex(Searcher):
         return bound_fraction
 
 
-class SearcherSequenceComplex(SearcherTargetComplex):
+class SearcherSequenceComplex(BareSearcher, SearcherTargetComplex):
 
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, internal_rates: dict,
@@ -593,6 +516,6 @@ class SearcherSequenceComplex(SearcherTargetComplex):
     def generate_dead_clone(self):
         """Returns SearcherSequenceComplex object with zero catalytic
         activity"""
-        dead_searcher = Searcher.generate_dead_clone(self)
+        dead_searcher = super().generate_dead_clone(self)
         dead_complex = dead_searcher.probe_explicit_target(self.hybrid)
         return dead_complex
