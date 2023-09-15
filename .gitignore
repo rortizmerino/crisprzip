@@ -1,17 +1,6 @@
-# folders not to include on GitLab repository
+# folders not to include on git
 .idea/
-.run/
-.temp/
-crisprzipper.egg-info/
-scrap/
-results/
-data/
-notebooks/
 
 # cache
 **/__pycache__/
-**/.ipynb_checkpoints/
 **/.pytest_cache/
-
-# personal
-**/user.config
