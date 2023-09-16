@@ -130,9 +130,10 @@ class Searcher:
 class BareSearcher(Searcher):
 
     @classmethod
-    def from_searcher(cls, searcher):
+    def from_searcher(cls, searcher, target_seq):
         landscape = searcher.on_target_landscape
         ontarget_na_energies = np.zeros_like(landscape)
+
         return cls(
             landscape - ontarget_na_energies,
             searcher.mismatch_penalties,
