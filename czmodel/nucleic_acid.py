@@ -256,171 +256,133 @@ class TargetDna:
 
     Attributes
     ----------
-    seq1: str
-        The target strand (=spacer), in 5'-to-3' notation
     seq2: str
-        The nontarget strand (=protospacer), in 3'-to-5'notation
+        The "target sequence", as present on the nontarget DNA strand
+        (=protospacer), in 5'-to-3'notation.
+    seq1: str
+        The target strand (=spacer), in 3'-to-5' notation
     upstream_bp: str
-        The basepair upstream (5'-side) of the target strand. For Cas9,
-        corresponds to the last basepair of the PAM.
+        The basepair upstream (5'-side) of the nontarget strand.
     dnstream_bp: str
-        The basepair downstream of the target strand.
+        The basepair downstream (3'-side) of the nontarget strand. For Cas9,
+        corresponds to the last basepair of the PAM.
 
     Methods
     -------
-    from_target_strand()
-        Makes a TargetDna instance from the target strand (=spacer)
-    from_nontarget_strand()
-        Makes a TargetDna instance from the nontarget strand (=protospacer)
+    from_cas9_target()
+        Makes a TargetDna instance from a cas9 target sequence string.
+    make_random()
+        Make a random target dna of specified length.
     """
 
     bp_map = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
 
     def __init__(self, target_sequence,
-                 fwd_direction=True,
-                 upstream_nt: str = None, downstream_nt: str = None):
+                 upstream_nt: str = None,
+                 downstream_nt: str = None):
 
-        self.seq1 = (target_sequence if fwd_direction
-                     else target_sequence[::-1])
-        self.seq2 = self.__reverse_transcript(self.seq1)
+        # non-target strand
+        self.seq2 = target_sequence
+        # target strand
+        self.seq1 = self.__reverse_transcript(self.seq2)
 
-        if fwd_direction and upstream_nt is not None:
+        if upstream_nt is None:
+            self.upstream_bp = None
+        else:
             self.upstream_bp = (upstream_nt + "-" +
                                 self.bp_map[upstream_nt])
-        elif not fwd_direction and downstream_nt is not None:
-            self.upstream_bp = (downstream_nt + "-" +
-                                self.bp_map[downstream_nt])
+        if downstream_nt is None:
+            self.dnstream_bp = None
         else:
-            self.upstream_bp = None
-
-        if fwd_direction and downstream_nt is not None:
             self.dnstream_bp = (downstream_nt + "-" +
                                 self.bp_map[downstream_nt])
-        elif not fwd_direction and upstream_nt is not None:
-            self.dnstream_bp = (upstream_nt + "-" +
-                                self.bp_map[upstream_nt])
-        else:
-            self.dnstream_bp = None
-
-    @classmethod
-    def __reverse_transcript(cls, sequence):
-        """Gives complementary sequence (in opposite direction!)"""
-        return ''.join([cls.bp_map[n] for n in sequence])
-
-    @classmethod
-    def from_target_strand(cls, target_sequence: str,
-                           fwd_direction=True,
-                           upstream_nt: str = None,
-                           downstream_nt: str = None) -> 'TargetDna':
-        """
-        Makes a TargetDna instance from the target strand (=spacer)
-
-        Arguments
-        ---------
-        target_sequence: str
-            Nucleotide sequence of the target strand.
-        fwd_direction: bool
-            If True (default), target_sequence is read with 5'-to-3'
-            direction. If False, read with 3'-to-5'.
-        upstream_nt: str
-            If fwd_direction is true: nucleotide at 5' side of the
-            target sequence, complementing the 3rd PAM nucleotide.
-            If fwd_direction is false: nucleotide at the 3' side of the
-            target sequence.
-        downstream_nt:
-            If fwd_direction is true: nucleotide at 5' side of the
-            target sequence. If fwd_direction is false: nucleotide at
-            the 3' side of the target sequence, complementing the 3rd
-            PAM nucleotide.
-        """
-
-        return cls(target_sequence, fwd_direction,
-                   upstream_nt, downstream_nt)
-
-    @classmethod
-    def from_nontarget_strand(cls, nontarget_sequence,
-                              fwd_direction=True,
-                              upstream_nt: str = None,
-                              downstream_nt: str = None) -> 'TargetDna':
-        """
-        Makes a TargetDna instance from the nontarget strand
-        (=protospacer)
-
-        Arguments
-        ---------
-        nontarget_sequence: str
-            Nucleotide sequence of the nontarget strand.
-        fwd_direction: bool
-            If True (default), nontarget_sequence is read with 3'-to-5'
-            direction. If False, read with 5'-to-3'.
-        upstream_nt: str
-            If fwd_direction is true: nucleotide at 3' side of the
-            nontarget sequence, corresponding to the 3rd PAM nucleotide.
-            If fwd_direction is false: nucleotide at the 5' side of the
-            nontarget sequence.
-        downstream_nt:
-            If fwd_direction is true: nucleotide at 5' side of the
-            nontarget sequence. If fwd_direction is false: nucleotide at
-            the 3' side of the nontarget sequence, corresponding to the
-            3rd PAM nucleotide.
-        """
-
-        target_sequence = cls.__reverse_transcript(nontarget_sequence)
-
-        return cls(target_sequence, fwd_direction,
-                   upstream_nt=(None if downstream_nt is None
-                                else cls.bp_map[downstream_nt]),
-                   downstream_nt=(None if upstream_nt is None
-                                  else cls.bp_map[upstream_nt]))
-
-    @classmethod
-    def make_random(cls, length, seed=None):
-        random.seed(seed)
-        nucleotides = list(cls.bp_map.keys())
-        seq = ''.join(random.choices(nucleotides, k=length + 2))
-        return cls(target_sequence=seq[1:length+1],
-                   fwd_direction=True,
-                   upstream_nt=seq[0],
-                   downstream_nt=seq[-1])
 
     def __str__(self):
         """Generates a handy string representation of the DNA duplex."""
 
-        strand1 = self.seq1
         strand2 = self.seq2
+        strand1 = self.seq1
 
         if self.upstream_bp:
-            strand1 = self.upstream_bp[0] + strand1
-            strand2 = self.upstream_bp[-1] + strand2
+            strand2 = self.upstream_bp[0] + strand2
+            strand1 = self.upstream_bp[-1] + strand1
         else:
-            strand1 = "N" + strand1
             strand2 = "N" + strand2
+            strand1 = "N" + strand1
 
         if self.dnstream_bp:
-            strand1 = strand1 + self.dnstream_bp[0]
-            strand2 = strand2 + self.dnstream_bp[-1]
+            strand2 = strand2 + self.dnstream_bp[0]
+            strand1 = strand1 + self.dnstream_bp[-1]
         else:
-            strand1 = strand1 + "N"
             strand2 = strand2 + "N"
+            strand1 = strand1 + "N"
 
         # Formatting labels to indicate bp index
         count = 5
         reps = (len(self.seq1) - 3) // count
-        labs = ''.join(["{0:>{1}d}".format(count * i, count)
-                        for i in range(1, reps + 1)])
-        labs = (
-            " 1" +
-            labs[1:len(self.seq1)] +
-            "{0:>{1}d}".format(len(self.seq1),
-                               len(self.seq1) - len(labs))
-        )
+        labs = ''.join(["{0:<{1}d}".format(count * i, count)
+                        for i in reversed(range(1, reps + 1))])[:-1] + '1'
+        labs = labs.rjust(len(self.seq1) + 4)
+        labs = 4 * ' ' + str(len(self.seq1)).ljust(2) + labs[6:]
 
         return "\n".join([
-            f"5\'-{strand1}-3\' (DNA target strand)",
+            f"3\'-{strand1}-5\' (DNA TS)",
             3 * " " + (2 + len(self.seq1)) * "|",
-            f"3\'-{strand2}-5\' (DNA nontarget strand)",
-            3 * " " + labs
+            f"5\'-{strand2}-3\' (DNA NTS)",
+            labs
         ])
+
+    @classmethod
+    def __reverse_transcript(cls, sequence: str) -> str:
+        """Gives complementary sequence (in opposite direction!)"""
+        return ''.join([cls.bp_map[n] for n in sequence])
+
+    @classmethod
+    def from_cas9_target(cls, full_target: str) -> 'TargetDna':
+        """Makes a TargetDna instance from a cas9 target sequence string.
+        Assumes a length of 20 nt, followed by a PAM. If the target
+        sequence is longer than 23, it includes the upstream nt as well."""
+
+        # no upstream nt, target + PAM
+        if not full_target[-2:] == "GG":
+            raise ValueError("Full target should end with NGG PAM.")
+
+        downstream_nt = full_target[-3]
+        upstream_nt = (None if len(full_target) <= 23
+                       else full_target[-24])
+        target_seq = full_target[-23:-3]
+        return cls(target_seq, upstream_nt, downstream_nt)
+
+    def apply_point_mut(self, mutation: str):
+        """Changes DNA hybrid according to a single point mutation.
+        Mutation strings have the form A02T, where the NTS nucleotide A
+        at position 2 would get replaced by a nucleotide T."""
+
+        old_nt = mutation[0]
+        pmut_pos = len(self.seq2) - int(mutation[1:3])
+        new_nt = mutation[3]
+
+        if self.seq2[pmut_pos] != old_nt:
+            raise ValueError("Mutation doesn't match target sequence")
+
+        new_seq = self.seq2[:pmut_pos] + new_nt
+        if pmut_pos < len(self.seq2):
+            new_seq += self.seq2[pmut_pos+1:]
+
+        return type(self)(
+            new_seq, upstream_nt=self.upstream_bp[0],
+            downstream_nt=self.dnstream_bp[0],
+        )
+
+    @classmethod
+    def make_random(cls, length: int, seed=None) -> 'TargetDna':
+        """Make a random target dna of specified length."""
+        random.seed(seed)
+        nucleotides = list(cls.bp_map.keys())
+        seq = ''.join(random.choices(nucleotides, k=length + 2))
+        return cls(upstream_nt=seq[0],
+                   target_sequence=seq[1:length+1],
+                   downstream_nt=seq[-1])
 
 
 class GuideTargetHybrid:
@@ -431,7 +393,7 @@ class GuideTargetHybrid:
     Attributes
     ----------
     guide: str
-        The RNA guide strand, in 3'-to-5' notation
+        The RNA guide strand, in 5'-to-3' notation
     target: TargetDna
         The dsDNA site to be interrogated
     state: int
@@ -445,12 +407,85 @@ class GuideTargetHybrid:
         Identifies the positions of mismatching guide-target basepairs.
     """
 
-    bp_map = {'A': 'T', 'C': 'G', 'G': 'C', 'U': 'A'}
+    bp_map = {'A': 'U', 'C': 'G', 'G': 'C', 'T': 'A'}
 
-    def __init__(self, guide: str, target: TargetDna):
+    def __init__(self, guide: str, target: TargetDna, state: int = 0):
         self.guide = guide
         self.target = target
-        self.state = 0
+        self.state = state
+
+    def __str__(self):
+        """Generates a handy string representation of the R-loop.
+        Use set_rloop_state() to update this representation."""
+        dna_repr = str(self.target).split('\n')
+        hybrid_bps = (''.join(map(str, self.find_mismatches()))
+                      .replace('1', "\u00B7")
+                      .replace('0', '|'))[::-1]
+        hybrid_bps = (hybrid_bps[-self.state:]).rjust(4 + len(self.guide))
+        if self.state == 0:
+            hybrid_bps = ''
+
+        return "\n".join([
+            f" 5\'-{self.guide}-3\'  (RNA guide)",
+            hybrid_bps,
+            dna_repr[0],
+            dna_repr[1][:4 + len(self.guide) - self.state] +
+            self.state * " " + "|",
+            dna_repr[2],
+            dna_repr[3]
+        ])
+
+    @classmethod
+    def from_cas9_protospacer(cls, protospacer: str, mismatches: str = '',
+                              state: int = 0) -> 'GuideTargetHybrid':
+        """Instantiate GuideTargetHybrid from protospacer and point
+        mutations.
+
+        Parameters
+        ----------
+        protospacer: str
+            Full sequence of the protospacer/on-target: 5'-20nt-PAM-3',
+            possibly preceded by the upstream sequence.
+        mismatches: str
+            Mismatch desciptors (in the form "A02T") describing how the
+            target deviates from the protospacer. Multiple mismatches
+            should be space-separated.
+        state: int
+            R-loop hybridization state
+        """
+
+        ontarget = TargetDna.from_cas9_target(protospacer)
+        guide_rna = ''.join([cls.bp_map[n] for n in ontarget.seq1])
+
+        target = ontarget
+        if mismatches != '':
+            for mm in mismatches.split():
+                target = target.apply_point_mut(mm)
+
+        return cls(guide_rna, target, state)
+
+    @classmethod
+    def from_cas9_offtarget(cls, offtarget_seq: str, protospacer: str,
+                            state: int = 0) -> 'GuideTargetHybrid':
+        """Instantiate GuideTargetHybrid from protospacer and point
+        mutations.
+
+        Parameters
+        ----------
+        offtarget_seq: str
+            Full sequence of the (off-)target: 5'-20nt-PAM-3', possibly
+            preceded by the upstream sequence.
+        protospacer: str
+            Full sequence of the protospacer/on-target: 5'-20nt-PAM-3',
+            possibly preceded by the upstream sequence.
+        state: int
+            R-loop hybridization state
+        """
+
+        ontarget = TargetDna.from_cas9_target(protospacer)
+        guide_rna = ''.join([cls.bp_map[n] for n in ontarget.seq1])
+        offtarget = TargetDna.from_cas9_target(offtarget_seq)
+        return cls(guide_rna, offtarget, state)
 
     def set_rloop_state(self, rloop_state):
         self.state = rloop_state
@@ -459,29 +494,13 @@ class GuideTargetHybrid:
         """Identifies the positions of mismatching guide-target
         basepairs."""
         mismatches = []
-        for i, n in enumerate(self.guide):
-            mismatches += [0 if self.bp_map[n] == self.target.seq1[i]
+        for i, n in enumerate(reversed(self.target.seq1)):
+            mismatches += [0 if self.bp_map[n] == self.guide[-1-i]
                            else 1]
         return mismatches
 
     def get_mismatch_pattern(self) -> MismatchPattern:
         return MismatchPattern(self.find_mismatches())
-
-    def __str__(self):
-        """Generates a handy string representation of the R-loop.
-        Use set_rloop_state() to update this representation."""
-        dna_repr = str(self.target).split('\n')
-        hybrid_bps = (''.join(map(str, self.find_mismatches()))
-                         .replace('1', "\u00B7")
-                         .replace('0', '|'))
-        return "\n".join([
-            f" 3\'-{self.guide}-5\'  (RNA guide)",
-            4 * " " + hybrid_bps[:self.state],
-            dna_repr[0],
-            "   |" + self.state * " " + dna_repr[1][self.state+4:],
-            dna_repr[2],
-            dna_repr[3]
-        ])
 
 
 class NearestNeighborModel:
