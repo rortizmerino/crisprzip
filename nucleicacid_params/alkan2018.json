@@ -10,7 +10,7 @@
         "temperature celsius": 37.0
       },
       "energy unit": "kcal/mol",
-      "basestack notation": "rAC/dUG means 5'-AC-3' DNA with 3'-UG-5' RNA"
+      "basestack notation": "rUC/dAT means 5'-UC-3' RNA with 3'-AT-5' DNA"
     },
     "references": {
       "alkan2018": {
