@@ -166,87 +166,87 @@ def clear_cache():
     rmtree(tempdir)
 
 
-@memory.cache
-def get_hybridization_energy(guide_sequence: str,
-                             target_sequence: str = None,
-                             nontarget_sequence: str = None,
-                             upstream_nt: str = None,
-                             downstream_nt: str = None,
-                             fwd_direction: bool = True) -> np.ndarray:
-
-    """
-    Calculates the free energy cost associated with the progressive
-    formation of an R-loop between an RNA guide and target DNA strand.
-
-    Parameters
-    ----------
-    guide_sequence: str
-        Sequence of the RNA guide, in 3'-to-5' notation.
-    target_sequence: str
-        Sequence of the DNA target strand (=spacer), in 5'-to-3'
-        notation. If both target and nontarget sequence are specified
-        target sequence overrules the other.
-    nontarget_sequence: str
-        Sequence of the DNA nontarget strand (=protospacer), in 5'-to-3'
-        notation.
-    upstream_nt: str
-        Nucleotide that is positioned at the 5' side of the target strand.
-        Complements the 3rd nucleotide in the PAM motif.
-    downstream_nt: str
-        Nucleotide that is positioned at the 3' side of the target strand.
-    fwd_direction: bool
-        True by default. If False, all directionality is reversed and the
-        upstream and downstream nucleotides are swapped.
-
-    Returns
-    -------
-    hybridization_energy: np.ndarray
-        Free energies required to create an R-loop.
-
-    """
-
-    # Recursively calling the same function for opposite directionality
-    if not fwd_direction:
-        return get_hybridization_energy(
-            guide_sequence=guide_sequence[::-1],
-            target_sequence=(None if target_sequence is None
-                             else target_sequence[::-1]),
-            nontarget_sequence=(None if nontarget_sequence is None
-                                else nontarget_sequence[::-1]),
-            upstream_nt=downstream_nt,
-            downstream_nt=upstream_nt,
-            fwd_direction=True
-        )
-
-    # Prepare target DNA and guide RNA
-    if target_sequence is not None:
-        target = TargetDna.from_target_strand(
-            target_sequence=target_sequence,
-            fwd_direction=True,
-            upstream_nt=upstream_nt,
-            downstream_nt=downstream_nt
-        )
-    elif nontarget_sequence is not None:
-        target = TargetDna.from_nontarget_strand(
-            nontarget_sequence=nontarget_sequence,
-            fwd_direction=True,
-            upstream_nt=upstream_nt,
-            downstream_nt=downstream_nt
-        )
-    else:
-        raise ValueError("Give either target or non-target sequence"
-                         "as an argument.")
-    hybrid = GuideTargetHybrid(guide_sequence, target)
-
-    # prepare NearestNeighborModel
-    nnmodel = NearestNeighborModel()
-    nnmodel.load_data()
-    nnmodel.set_energy_unit("kbt")
-
-    # do calculations
-    hybridization_energy = nnmodel.get_hybridization_energy(hybrid)
-
-    return hybridization_energy
+# @memory.cache
+# def get_hybridization_energy(guide_sequence: str,
+#                              target_sequence: str = None,
+#                              nontarget_sequence: str = None,
+#                              upstream_nt: str = None,
+#                              downstream_nt: str = None,
+#                              fwd_direction: bool = True) -> np.ndarray:
+#
+#     """
+#     Calculates the free energy cost associated with the progressive
+#     formation of an R-loop between an RNA guide and target DNA strand.
+#
+#     Parameters
+#     ----------
+#     guide_sequence: str
+#         Sequence of the RNA guide, in 3'-to-5' notation.
+#     target_sequence: str
+#         Sequence of the DNA target strand (=spacer), in 5'-to-3'
+#         notation. If both target and nontarget sequence are specified
+#         target sequence overrules the other.
+#     nontarget_sequence: str
+#         Sequence of the DNA nontarget strand (=protospacer), in 5'-to-3'
+#         notation.
+#     upstream_nt: str
+#         Nucleotide that is positioned at the 5' side of the target strand.
+#         Complements the 3rd nucleotide in the PAM motif.
+#     downstream_nt: str
+#         Nucleotide that is positioned at the 3' side of the target strand.
+#     fwd_direction: bool
+#         True by default. If False, all directionality is reversed and the
+#         upstream and downstream nucleotides are swapped.
+#
+#     Returns
+#     -------
+#     hybridization_energy: np.ndarray
+#         Free energies required to create an R-loop.
+#
+#     """
+#
+#     # Recursively calling the same function for opposite directionality
+#     if not fwd_direction:
+#         return get_hybridization_energy(
+#             guide_sequence=guide_sequence[::-1],
+#             target_sequence=(None if target_sequence is None
+#                              else target_sequence[::-1]),
+#             nontarget_sequence=(None if nontarget_sequence is None
+#                                 else nontarget_sequence[::-1]),
+#             upstream_nt=downstream_nt,
+#             downstream_nt=upstream_nt,
+#             fwd_direction=True
+#         )
+#
+#     # Prepare target DNA and guide RNA
+#     if target_sequence is not None:
+#         target = TargetDna.from_target_strand(
+#             target_sequence=target_sequence,
+#             fwd_direction=True,
+#             upstream_nt=upstream_nt,
+#             downstream_nt=downstream_nt
+#         )
+#     elif nontarget_sequence is not None:
+#         target = TargetDna.from_nontarget_strand(
+#             nontarget_sequence=nontarget_sequence,
+#             fwd_direction=True,
+#             upstream_nt=upstream_nt,
+#             downstream_nt=downstream_nt
+#         )
+#     else:
+#         raise ValueError("Give either target or non-target sequence"
+#                          "as an argument.")
+#     hybrid = GuideTargetHybrid(guide_sequence, target)
+#
+#     # prepare NearestNeighborModel
+#     nnmodel = NearestNeighborModel()
+#     nnmodel.load_data()
+#     nnmodel.set_energy_unit("kbt")
+#
+#     # do calculations
+#     hybridization_energy = nnmodel.get_hybridization_energy(hybrid)
+#
+#     return hybridization_energy
 
 
 class TargetDna:
@@ -285,6 +285,9 @@ class TargetDna:
         self.seq2 = target_sequence
         # target strand
         self.seq1 = self.__reverse_transcript(self.seq2)
+
+        self.upstream_nt = upstream_nt
+        self.downstream_nt = downstream_nt
 
         if upstream_nt is None:
             self.upstream_bp = None
@@ -370,8 +373,8 @@ class TargetDna:
             new_seq += self.seq2[pmut_pos+1:]
 
         return type(self)(
-            new_seq, upstream_nt=self.upstream_bp[0],
-            downstream_nt=self.dnstream_bp[0],
+            new_seq, upstream_nt=self.upstream_nt,
+            downstream_nt=self.downstream_nt,
         )
 
     @classmethod
@@ -486,6 +489,13 @@ class GuideTargetHybrid:
         guide_rna = ''.join([cls.bp_map[n] for n in ontarget.seq1])
         offtarget = TargetDna.from_cas9_target(offtarget_seq)
         return cls(guide_rna, offtarget, state)
+
+    def apply_point_mut(self, mutation: str) -> 'GuideTargetHybrid':
+        return type(self)(
+            guide=self.guide,
+            target=self.target.apply_point_mut(mutation),
+            state=self.state
+        )
 
     def set_rloop_state(self, rloop_state):
         self.state = rloop_state
@@ -619,48 +629,51 @@ class NearestNeighborModel:
 
             for bp in possible_bps:
                 if side == 'upstream':
-                    basestack = (
-                        f"d{bp[0]}{hybrid.target.seq1[0]}/"
-                        f"d{bp[1]}{hybrid.target.seq2[0]}"
+                    bstack = (
+                        f"d{bp[0]}{hybrid.target.seq2[0]}/"
+                        f"d{bp[1]}{hybrid.target.seq1[0]}"
                     )
                 elif side == 'downstream':
-                    basestack = (
-                        f"d{hybrid.target.seq1[-1]}{bp[0]}/"
-                        f"d{hybrid.target.seq2[-1]}{bp[1]}"
+                    bstack = (
+                        f"d{hybrid.target.seq2[-1]}{bp[0]}/"
+                        f"d{hybrid.target.seq1[-1]}{bp[1]}"
                     )
                 else:
                     raise ValueError("Side can only be downstream or"
                                      "upstream.")
-                basestack_energy += (stacking_energies[basestack] / 4)
+                basestack_energy += (stacking_energies[bstack] / 4)
             return basestack_energy
 
         open_energy = np.zeros(len(hybrid.guide) + 1)
 
-        # Handling the left basestack
-        if hybrid.target.upstream_bp is not None:
-            left_basestack = (f"d{hybrid.target.upstream_bp[0]}"
-                              f"{hybrid.target.seq1[0]}/"
-                              f"d{hybrid.target.upstream_bp[-1]}"
-                              f"{hybrid.target.seq2[0]}")
-            open_energy[1:] -= stacking_energies[left_basestack]
-        else:
-            open_energy[1:] -= average_basestack("upstream")
-
-        # Handling right basestacks
-        for i in range(0, len(hybrid.guide) - 1):
-            right_basestack = (f"d{hybrid.target.seq1[i:i+2]}/"
-                               f"d{hybrid.target.seq2[i:i+2]}")
-            open_energy[i+1:] -= stacking_energies[right_basestack]
-
-        # Final right basestack
+        # Rightmost basestack
         if hybrid.target.dnstream_bp is not None:
-            left_basestack = (f"d{hybrid.target.seq1[-1]}"
-                               f"{hybrid.target.dnstream_bp[0]}/"
-                               f"d{hybrid.target.seq2[-1]}"
-                               f"{hybrid.target.dnstream_bp[-1]}")
-            open_energy[-1] -= stacking_energies[left_basestack]
+            basestack = (f"d{hybrid.target.seq2[-1]}"
+                         f"{hybrid.target.dnstream_bp[0]}/"
+                         f"d{hybrid.target.seq1[-1]}"
+                         f"{hybrid.target.dnstream_bp[-1]}")
+            open_energy[1:] -= stacking_energies[basestack]
         else:
-            open_energy[-1] -= average_basestack("downstream")
+            open_energy[1:] -= average_basestack("downstream")
+
+        # Handling middle basestacks
+        rev_ntstr = hybrid.target.seq2[::-1]
+        rev_tgstr = hybrid.target.seq1[::-1]
+        for i in (range(0, len(hybrid.guide) - 1)):
+            # sorry for the hacky way of formatting basestacks
+            basestack = (f"d{rev_ntstr[i:i + 2][::-1]}/"
+                         f"d{rev_tgstr[i:i + 2][::-1]}")
+            open_energy[i + 1:] -= stacking_energies[basestack]
+
+        # Leftmost basestack
+        if hybrid.target.upstream_bp is not None:
+            basestack = (f"d{hybrid.target.upstream_bp[0]}"
+                         f"{hybrid.target.seq2[0]}/"
+                         f"d{hybrid.target.upstream_bp[-1]}"
+                         f"{hybrid.target.seq1[0]}")
+            open_energy[-1] -= stacking_energies[basestack]
+        else:
+            open_energy[-1] -= average_basestack("upstream")
 
         return open_energy
 
@@ -680,19 +693,20 @@ class NearestNeighborModel:
         def basestack_energy(i: int):
             """Locates basestacks in R-loop of length i and
             returns their total energy."""
-            # # print(i)
             if i < 2:
                 return 0.
 
             energy = 0.
             mm_pos = hybrid.find_mismatches()[:i]
-            for j, nt in enumerate(hybrid.guide[:i-1]):
-                if mm_pos[j] == 0 and mm_pos[j+1] == 0:
-                    # Reversed order to match 5'-to-3' notation
-                    basestack = f"r{hybrid.guide[j+1]}" \
-                                f"{hybrid.guide[j]}/" \
-                                f"d{hybrid.target.seq1[j+1]}" \
-                                f"{hybrid.target.seq1[j]}"
+            partial_rev_guide = hybrid.guide[-1:-1 - i:-1]
+            partial_rev_tgstr = hybrid.target.seq1[-1:-1 - i:-1]
+
+            for j, nt in enumerate(partial_rev_guide[:-1]):
+                if mm_pos[j] == 0 and mm_pos[j + 1] == 0:
+                    basestack = f"r{partial_rev_guide[j + 1]}" \
+                                f"{partial_rev_guide[j]}/" \
+                                f"d{partial_rev_tgstr[j + 1]}" \
+                                f"{partial_rev_tgstr[j]}"
                     energy += stacking_energies["2mer"][basestack]
             return energy
 
@@ -704,14 +718,18 @@ class NearestNeighborModel:
 
             energy = 0.
             mm_pos = hybrid.find_mismatches()[:i]
+            partial_rev_guide = hybrid.guide[-1:-1 - i:-1]
+            partial_rev_tgstr = hybrid.target.seq1[-1:-1 - i:-1]
+
+            # scanning hybrid from right to left
             for j in range(1, i - 1):
 
-                # identify left side of internal loop
-                if mm_pos[j-1] == 0 and mm_pos[j] == 1:
+                # identify right side of internal loop
+                if mm_pos[j - 1] == 0 and mm_pos[j] == 1:
                     looplen = 1
 
-                    # find right side of internal loop
-                    for k in range(j+1, i):
+                    # find left side of internal loop
+                    for k in range(j + 1, i):
                         if mm_pos[k] == 0:
                             break
                         looplen += 1
@@ -720,48 +738,46 @@ class NearestNeighborModel:
                         break
 
                     if looplen == 1:
-                        # Reversed order to match 5'-to-3' notation
                         basestacks = (
-                            f"r{hybrid.guide[j + 1]}"
-                            f"{hybrid.guide[j]}"
-                            f"{hybrid.guide[j - 1]}/"
-                            f"d{hybrid.target.seq1[j + 1]}"
-                            f"{hybrid.target.seq1[j]}"
-                            f"{hybrid.target.seq1[j - 1]}"
+                            f"r{partial_rev_guide[j + 1]}"
+                            f"{partial_rev_guide[j]}"
+                            f"{partial_rev_guide[j - 1]}/"
+                            f"d{partial_rev_tgstr[j + 1]}"
+                            f"{partial_rev_tgstr[j]}"
+                            f"{partial_rev_tgstr[j - 1]}"
                         )
                         energy += stacking_energies["3mer"][basestacks]
 
                     elif looplen == 2:
-                        # Reversed order to match 5'-to-3' notation
                         basestacks = (
-                            f"r{hybrid.guide[j + 2]}"
-                            f"{hybrid.guide[j + 1]}"
-                            f"{hybrid.guide[j]}"
-                            f"{hybrid.guide[j - 1]}/"
-                            f"d{hybrid.target.seq1[j + 2]}"
-                            f"{hybrid.target.seq1[j + 1]}"
-                            f"{hybrid.target.seq1[j]}"
-                            f"{hybrid.target.seq1[j - 1]}"
+                            f"r{partial_rev_guide[j + 2]}"
+                            f"{partial_rev_guide[j + 1]}"
+                            f"{partial_rev_guide[j]}"
+                            f"{partial_rev_guide[j - 1]}/"
+                            f"d{partial_rev_tgstr[j + 2]}"
+                            f"{partial_rev_tgstr[j + 1]}"
+                            f"{partial_rev_tgstr[j]}"
+                            f"{partial_rev_tgstr[j - 1]}"
                         )
                         energy += stacking_energies["4mer"][basestacks]
 
                     elif looplen >= 3:
                         left_basestack = (
-                            f"r{hybrid.guide[j]}"
-                            f"{hybrid.guide[j - 1]}/"
-                            f"d{hybrid.target.seq1[j]}"
-                            f"{hybrid.target.seq1[j - 1]}"
+                            f"r{partial_rev_guide[j + looplen]}"
+                            f"{partial_rev_guide[j + looplen - 1]}/"
+                            f"d{partial_rev_tgstr[j + looplen]}"
+                            f"{partial_rev_tgstr[j + looplen - 1]}"
                         )
                         right_basestack = (
-                            f"r{hybrid.guide[j+looplen]}"
-                            f"{hybrid.guide[j+looplen-1]}/"
-                            f"d{hybrid.target.seq1[j+looplen]}"
-                            f"{hybrid.target.seq1[j+looplen-1]}"
+                            f"r{partial_rev_guide[j]}"
+                            f"{partial_rev_guide[j - 1]}/"
+                            f"d{partial_rev_tgstr[j]}"
+                            f"{partial_rev_tgstr[j - 1]}"
                         )
                         energy += (
-                            stacking_energies["2mer"][left_basestack] +
-                            stacking_energies["2mer"][right_basestack] +
-                            loop_energies[f"{2*looplen} nt"]
+                                stacking_energies["2mer"][left_basestack] +
+                                stacking_energies["2mer"][right_basestack] +
+                                loop_energies[f"{2 * looplen} nt"]
                         )
 
             return energy
@@ -770,30 +786,33 @@ class NearestNeighborModel:
             """Locates external loops in R-loop of length i and
             returns their total energy. Unused right now because
             we're considering all terminal energies instead."""
+
             mm_pos = hybrid.find_mismatches()[:i]
+            partial_rev_guide = hybrid.guide[-1:-1 - i:-1]
+            partial_rev_tgstr = hybrid.target.seq1[-1:-1 - i:-1]
 
             if sum(mm_pos) == len(mm_pos):
                 return 0.
 
             energy = 0.
 
-            # open left side
+            # open right side
             if mm_pos[0] == 1:
                 # find right side of internal loop
                 for k in range(0, i):
                     if mm_pos[k] == 0:
-                        basepair = f"r{hybrid.guide[k]}-" \
-                                   f"d{hybrid.target.seq1[k]}"
+                        basepair = f"r{partial_rev_guide[k]}-" \
+                                   f"d{partial_rev_tgstr[k]}"
                         energy += terminal_energies[basepair]
                         break
 
-            # open right side
+            # open left side
             if mm_pos[-1] == 1:
                 # find right side of internal loop
-                for k in range(i, 0, -1):
+                for k in range(i - 1, 0, -1):
                     if mm_pos[k] == 0:
-                        basepair = f"r{hybrid.guide[k]}-" \
-                                   f"d{hybrid.target.seq1[k]}"
+                        basepair = f"r{partial_rev_guide[k]}-" \
+                                   f"d{partial_rev_tgstr[k]}"
                         energy += terminal_energies[basepair]
                         break
 
@@ -804,33 +823,36 @@ class NearestNeighborModel:
             returns their total energy."""
 
             mm_pos = hybrid.find_mismatches()[:i]
+            partial_rev_guide = hybrid.guide[-1:-1 - i:-1]
+            partial_rev_tgstr = hybrid.target.seq1[-1:-1 - i:-1]
+
             if sum(mm_pos) == len(mm_pos):
                 return 0.
 
             energy = 0.
-            # find leftmost basepair
+            # find rightmost basepair
             for k in range(0, i):
                 if mm_pos[k] == 0:
-                    basepair = f"r{hybrid.guide[k]}-" \
-                               f"d{hybrid.target.seq1[k]}"
+                    basepair = f"r{partial_rev_guide[k]}-" \
+                               f"d{partial_rev_tgstr[k]}"
                     energy += terminal_energies[basepair]
                     break
 
-            # find rightmost basepair
+            # find leftmost basepair
             for k in list(np.arange(i, 0, -1) - 1):
                 if mm_pos[k] == 0:
-                    basepair = f"r{hybrid.guide[k]}-" \
-                               f"d{hybrid.target.seq1[k]}"
+                    basepair = f"r{partial_rev_guide[k]}-" \
+                               f"d{partial_rev_tgstr[k]}"
                     energy += terminal_energies[basepair]
                     break
 
             return energy
 
         # Looping over R-loop states, adding all energy contributions
-        duplex_energy = np.array([
-            (basestack_energy(i) +
-             internal_loops_energy(i) +
-             terminals_energy(i))
-            for i in range(len(hybrid.guide) + 1)
+        duplex_energy = np.array([(
+            basestack_energy(i) +
+            internal_loops_energy(i) +
+            terminals_energy(i)
+        ) for i in range(len(hybrid.guide) + 1)
         ])
         return duplex_energy
