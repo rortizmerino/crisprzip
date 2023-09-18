@@ -10,6 +10,10 @@ Classes:
 
 Functions:
     format_point_mutations()
+    get_tempdir(
+    clear_cache()
+    get_hybridization_energy()
+    make_hybr_energy_func()
 """
 
 import json
@@ -133,16 +137,8 @@ class MismatchPattern:
         return [i for i, mm in enumerate(self.pattern) if mm]
 
 
-# General comment: I'm sorry for the misuse of the terms 'upstream'
-# and 'downstream' below, they have not been used according to their
-# formal definitions. It's inconvenient that literature reports
-# most nucleic acid sequences in 5'-to-3' notation, but the R-loop
-# formation follows the opposite direction (for Cas9, at least),
-# making it logical to make pltos in 3'-to-5' notation. Just be careful
-# with the directionality of your sequence input.
-
-# make temporary directory to store cache
 def get_tempdir():
+    """make temporary directory to store get_hybridization_energy cache"""
     environ = os.environ
     if "TMP" in environ:
         return Path(os.environ["TMP"]).joinpath("crisprzipper")
@@ -152,101 +148,81 @@ def get_tempdir():
         return Path("/tmp/crisprzipper")
 
 
-def get_root_dir():
-    # Assumed folder structure: root_dir/crisprzipper/model/nucleic_acid.py
-    return Path(__file__).absolute().parents[2]
-
-
-# tempdir = get_tempdir()
-tempdir = get_root_dir().joinpath("crisprzipper")
-memory = Memory(tempdir, verbose=0)
-
-
 def clear_cache():
     rmtree(tempdir)
 
 
-# @memory.cache
-# def get_hybridization_energy(guide_sequence: str,
-#                              target_sequence: str = None,
-#                              nontarget_sequence: str = None,
-#                              upstream_nt: str = None,
-#                              downstream_nt: str = None,
-#                              fwd_direction: bool = True) -> np.ndarray:
-#
-#     """
-#     Calculates the free energy cost associated with the progressive
-#     formation of an R-loop between an RNA guide and target DNA strand.
-#
-#     Parameters
-#     ----------
-#     guide_sequence: str
-#         Sequence of the RNA guide, in 3'-to-5' notation.
-#     target_sequence: str
-#         Sequence of the DNA target strand (=spacer), in 5'-to-3'
-#         notation. If both target and nontarget sequence are specified
-#         target sequence overrules the other.
-#     nontarget_sequence: str
-#         Sequence of the DNA nontarget strand (=protospacer), in 5'-to-3'
-#         notation.
-#     upstream_nt: str
-#         Nucleotide that is positioned at the 5' side of the target strand.
-#         Complements the 3rd nucleotide in the PAM motif.
-#     downstream_nt: str
-#         Nucleotide that is positioned at the 3' side of the target strand.
-#     fwd_direction: bool
-#         True by default. If False, all directionality is reversed and the
-#         upstream and downstream nucleotides are swapped.
-#
-#     Returns
-#     -------
-#     hybridization_energy: np.ndarray
-#         Free energies required to create an R-loop.
-#
-#     """
-#
-#     # Recursively calling the same function for opposite directionality
-#     if not fwd_direction:
-#         return get_hybridization_energy(
-#             guide_sequence=guide_sequence[::-1],
-#             target_sequence=(None if target_sequence is None
-#                              else target_sequence[::-1]),
-#             nontarget_sequence=(None if nontarget_sequence is None
-#                                 else nontarget_sequence[::-1]),
-#             upstream_nt=downstream_nt,
-#             downstream_nt=upstream_nt,
-#             fwd_direction=True
-#         )
-#
-#     # Prepare target DNA and guide RNA
-#     if target_sequence is not None:
-#         target = TargetDna.from_target_strand(
-#             target_sequence=target_sequence,
-#             fwd_direction=True,
-#             upstream_nt=upstream_nt,
-#             downstream_nt=downstream_nt
-#         )
-#     elif nontarget_sequence is not None:
-#         target = TargetDna.from_nontarget_strand(
-#             nontarget_sequence=nontarget_sequence,
-#             fwd_direction=True,
-#             upstream_nt=upstream_nt,
-#             downstream_nt=downstream_nt
-#         )
-#     else:
-#         raise ValueError("Give either target or non-target sequence"
-#                          "as an argument.")
-#     hybrid = GuideTargetHybrid(guide_sequence, target)
-#
-#     # prepare NearestNeighborModel
-#     nnmodel = NearestNeighborModel()
-#     nnmodel.load_data()
-#     nnmodel.set_energy_unit("kbt")
-#
-#     # do calculations
-#     hybridization_energy = nnmodel.get_hybridization_energy(hybrid)
-#
-#     return hybridization_energy
+tempdir = get_tempdir()
+memory = Memory(tempdir, verbose=0)
+
+
+@memory.cache
+def get_hybridization_energy(protospacer: str,
+                             offtarget_seq: str = None,
+                             mutations: str = None) -> np.ndarray:
+
+    """
+    Calculates the free energy cost associated with the progressive
+    formation of an R-loop between an RNA guide and target DNA strand.
+
+    Parameters
+    ----------
+    protospacer: str
+        Full sequence of the protospacer/on-target: 5'-20nt-PAM-3',
+        possibly preceded by the upstream sequence.
+    offtarget_seq: str
+        Full sequence of the (off-)target: 5'-20nt-PAM-3', possibly
+        preceded by the upstream sequence.
+    mutations: str
+        Mismatch desciptors (in the form "A02T") describing how the
+        target deviates from the protospacer. Multiple mismatches
+        should be space-separated.
+
+    Returns
+    -------
+    hybridization_energy: np.ndarray
+        Free energies required to create an R-loop.
+
+    """
+
+    # Handling 'mutation' argument
+    if offtarget_seq is None:
+        if mutations is None:
+            raise ValueError("No off-target sequence or mutations were"
+                             "supplied.")
+        hybrid = GuideTargetHybrid.from_cas9_protospacer(protospacer,
+                                                         mutations)
+        # Recursive calling to include in caching
+        return get_hybridization_energy(
+            protospacer=protospacer,
+            offtarget_seq=hybrid.target.seq2,
+            mutations=None
+        )
+
+    # Prepare target DNA and guide RNA
+    hybrid = GuideTargetHybrid.from_cas9_offtarget(offtarget_seq,
+                                                   protospacer)
+
+    # prepare NearestNeighborModel
+    nnmodel = NearestNeighborModel
+    NearestNeighborModel.load_data()
+    nnmodel.set_energy_unit("kbt")
+
+    # do calculations
+    hybridization_energy = nnmodel.get_hybridization_energy(hybrid)
+
+    return hybridization_energy
+
+
+def make_hybr_energy_func(protospacer: str):
+    """Wrapper of get_hybridization_energy that makes a hybridization
+    energy function which ony takes offtarget_seq as an argument, with
+    the protospacer having been predefined."""
+
+    def get_hybr_energy_fixed_protospacer(offtarget_seq: str):
+        return get_hybridization_energy(protospacer, offtarget_seq)
+
+    return get_hybr_energy_fixed_protospacer
 
 
 class TargetDna:
@@ -404,10 +380,21 @@ class GuideTargetHybrid:
 
     Methods
     -------
+    from_cas9_protospacer()
+        Instantiate GuideTargetHybrid from protospacer and point
+        mutations.
+    from_cas9_offtarget()
+        Instantiate GuideTargetHybrid from protospacer and point
+        mutations.
+    apply_point_mut()
+        Instantiate GuideTargetHybrid with point mutation applied
+        to target DNA.
     set_rloop_state()
         Update the R-loop state.
     find_mismatches()
         Identifies the positions of mismatching guide-target basepairs.
+    get_mismatch_pattern()
+        Returns MismatchPattern object of guide-target construct
     """
 
     bp_map = {'A': 'U', 'C': 'G', 'G': 'C', 'T': 'A'}
@@ -564,26 +551,26 @@ class NearestNeighborModel:
         energy parameters. doi.org/10.1186/s13059-018-1534-x
     .. [2] SantaLucia J, Hicks D (2004). The Thermodynamics of DNA
         Structural Motifs. doi.org/10.1146/annurev.biophys.32.110601.141800
-
     """
 
     # paths relative to crisprzipper source root
     dna_dna_params_file = "nucleicacid_params/santaluciahicks2004.json"
     rna_dna_params_file = "nucleicacid_params/alkan2018.json"
-    dna_dna_params: dict
-    rna_dna_params: dict
+    dna_dna_params: None
+    rna_dna_params: None
 
     energy_unit = "kbt"  # alternative: kcalmol
 
     @classmethod
-    def load_data(cls):
-        with open(Path(__file__).parents[1].joinpath(cls.dna_dna_params_file),
-                  'rb') as file:
-            cls.dna_dna_params = json.load(file)
+    def load_data(cls, force=False):
+        folder = Path(__file__).parents[1]
+        if cls.dna_dna_params is None or force:
+            with open(folder.joinpath(cls.dna_dna_params_file), 'rb') as file:
+                cls.dna_dna_params = json.load(file)
 
-        with open(Path(__file__).parents[1].joinpath(cls.rna_dna_params_file),
-                  'rb') as file:
-            cls.rna_dna_params = json.load(file)
+        if cls.rna_dna_params is None or force:
+            with open(folder.joinpath(cls.rna_dna_params_file), 'rb') as file:
+                cls.rna_dna_params = json.load(file)
 
     @classmethod
     def set_energy_unit(cls, unit: str):
