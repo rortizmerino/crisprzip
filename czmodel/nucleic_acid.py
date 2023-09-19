@@ -159,7 +159,7 @@ memory = Memory(tempdir, verbose=0)
 @memory.cache
 def get_hybridization_energy(protospacer: str,
                              offtarget_seq: str = None,
-                             mutations: str = None) -> np.ndarray:
+                             mutations: str = '') -> np.ndarray:
 
     """
     Calculates the free energy cost associated with the progressive
@@ -172,11 +172,13 @@ def get_hybridization_energy(protospacer: str,
         possibly preceded by the upstream sequence.
     offtarget_seq: str
         Full sequence of the (off-)target: 5'-20nt-PAM-3', possibly
-        preceded by the upstream sequence.
+        preceded by the upstream sequence. If provided, overrules
+        the 'mutations' parameter.
     mutations: str
         Mismatch desciptors (in the form "A02T") describing how the
         target deviates from the protospacer. Multiple mismatches
-        should be space-separated.
+        should be space-separated. Is empty by default, indicating
+        no mismatches (=on-target hybridization energy).
 
     Returns
     -------
@@ -187,16 +189,12 @@ def get_hybridization_energy(protospacer: str,
 
     # Handling 'mutation' argument
     if offtarget_seq is None:
-        if mutations is None:
-            raise ValueError("No off-target sequence or mutations were"
-                             "supplied.")
         hybrid = GuideTargetHybrid.from_cas9_protospacer(protospacer,
                                                          mutations)
         # Recursive calling to include in caching
         return get_hybridization_energy(
             protospacer=protospacer,
-            offtarget_seq=hybrid.target.seq2,
-            mutations=None
+            offtarget_seq=hybrid.target.seq2
         )
 
     # Prepare target DNA and guide RNA
@@ -226,6 +224,9 @@ def make_hybr_energy_func(protospacer: str):
 
 
 def find_average_mm_penalties(protospacer: str):
+    """Finds the effective penalties for all possible single point mutations
+    on a target, and averages over them to return the position-dependent
+    mismatch penalty due to undetermined mismatches."""
 
     # prepare NearestNeighborModel
     nnmodel = NearestNeighborModel
