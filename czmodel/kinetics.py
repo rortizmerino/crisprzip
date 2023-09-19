@@ -4,19 +4,17 @@ It defines the basic properties of a CRISPR(-like) searcher and uses
 these to simulate its R-loop hybridization dynamics.
 
 Classes:
-    MismatchPattern
     Searcher
+    BareSearcher(Searcher)
+    GuidedSearcher(BareSearcher)
     SearcherTargetComplex(Searcher)
+    SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex)
 """
 
-from typing import *
-
 import numpy as np
-from numpy.typing import ArrayLike
 
 from .matrix_expon import *
-from .nucleic_acid import MismatchPattern, GuideTargetHybrid, \
-    get_hybridization_energy
+from .nucleic_acid import *
 
 
 class Searcher:
@@ -55,7 +53,7 @@ class Searcher:
                  on_target_landscape: ArrayLike,
                  mismatch_penalties: ArrayLike,
                  internal_rates: dict,
-                 pam_detection=True):
+                 pam_detection=True, *args, **kwargs):
         """Constructor method"""
 
         # convert on_target_landscape and mismatch_penalties to numpy
@@ -103,7 +101,7 @@ class Searcher:
         )
         return forward_rate_array
 
-    def generate_dead_clone(self):
+    def generate_dead_clone(self) -> 'Searcher':
         """Returns Searcher object with zero catalytic activity"""
         dead_forward_rate_dict = self.internal_rates.copy()
         dead_forward_rate_dict['k_clv'] = 0
@@ -130,23 +128,110 @@ class Searcher:
 class BareSearcher(Searcher):
 
     @classmethod
-    def from_searcher(cls, searcher, target_seq):
-        landscape = searcher.on_target_landscape
-        ontarget_na_energies = np.zeros_like(landscape)
+    def from_searcher(cls, searcher, protospacer: str, *args, **kwargs):
+        """Subtracts the nearest-neighbour hybridization energies from
+        the definition of a 'normal' Searcher. Averages over the
+        penalties due to single point mutations to find the difference
+        with the original mm_penalties variable.
+
+        Parameters
+        ----------
+        searcher: Searcher
+            Searcher object to be transformed.
+        protospacer: str
+            Full sequence of the protospacer/on-target: 5'-20nt-PAM-3',
+            possibly preceded by the upstream sequence.
+        """
+
+        ontarget_na_energies = get_hybridization_energy(protospacer)
+        average_mm_penalties = find_average_mm_penalties(protospacer)
 
         return cls(
-            landscape - ontarget_na_energies,
-            searcher.mismatch_penalties,
+            searcher.on_target_landscape - ontarget_na_energies[1:],
+            searcher.mismatch_penalties - average_mm_penalties,
             searcher.internal_rates,
-            searcher.pam_detection
+            searcher.pam_detection,
+            *args, **kwargs
         )
 
-    def probe_target(self, guide_target_hybrid: GuideTargetHybrid) \
+    def to_searcher(self, protospacer: str) -> Searcher:
+
+        ontarget_na_energies = get_hybridization_energy(protospacer)
+        average_mm_penalties = find_average_mm_penalties(protospacer)
+
+        return Searcher(
+            self.on_target_landscape + ontarget_na_energies[1:],
+            self.mismatch_penalties + average_mm_penalties,
+            self.internal_rates,
+            self.pam_detection
+        )
+
+    def bind_guide_rna(self, protospacer: str) -> 'GuidedSearcher':
+        return GuidedSearcher(
+            on_target_landscape=self.on_target_landscape,
+            mismatch_penalties=self.mismatch_penalties,
+            internal_rates=self.internal_rates,
+            pam_detection=self.pam_detection,
+            protospacer=protospacer
+        )
+
+    def probe_target(self, target_mismatches: MismatchPattern) \
+            -> 'SearcherTargetComplex':
+        raise ValueError("A BareSearcher object cannot probe a "
+                         "target because its protospacer/guide RNA is"
+                         "undefined. Use probe_sequence() instead.")
+
+    def probe_sequence(self, protospacer: str, target_seq: str) \
             -> 'SearcherSequenceComplex':
         return SearcherSequenceComplex(self.on_target_landscape,
                                        self.mismatch_penalties,
                                        self.internal_rates,
-                                       guide_target_hybrid)
+                                       protospacer=protospacer,
+                                       target_seq=target_seq)
+
+
+class GuidedSearcher(BareSearcher):
+
+    def __init__(self, on_target_landscape: np.ndarray,
+                 mismatch_penalties: np.ndarray, internal_rates: dict,
+                 protospacer: str, *args, **kwargs):
+        super().__init__(on_target_landscape=on_target_landscape,
+                         mismatch_penalties=mismatch_penalties,
+                         internal_rates=internal_rates,
+                         *args, **kwargs)
+        self.protospacer = None
+        self.guide_rna = None
+        self.set_on_target(protospacer)
+
+    def set_on_target(self, protospacer: str) -> None:
+        self.protospacer = protospacer
+        self.guide_rna = protospacer[-23:-3].replace("T", "U")
+
+    def generate_dead_clone(self) -> 'GuidedSearcher':
+        """Returns GuidedSearcher object with zero catalytic activity"""
+        dead_forward_rate_dict = self.internal_rates.copy()
+        dead_forward_rate_dict['k_clv'] = 0
+        dead_searcher = GuidedSearcher(
+            on_target_landscape=self.on_target_landscape,
+            mismatch_penalties=self.mismatch_penalties,
+            internal_rates=dead_forward_rate_dict,
+            protospacer=self.protospacer
+        )
+        return dead_searcher
+
+    def probe_target(self, target_mismatches: MismatchPattern) \
+            -> 'SearcherTargetComplex':
+        raise ValueError("A GuidedSearcher object cannot probe a "
+                         "target without a defined sequence. Use "
+                         "probe_sequence() instead.")
+
+    def probe_sequence(self, target_seq: str, *args, **kwargs) -> \
+            'SearcherSequenceComplex':
+        return SearcherSequenceComplex(self.on_target_landscape,
+                                       self.mismatch_penalties,
+                                       self.internal_rates,
+                                       protospacer=self.protospacer,
+                                       target_seq=target_seq)
 
 
 class SearcherTargetComplex(Searcher):
@@ -186,9 +271,9 @@ class SearcherTargetComplex(Searcher):
 
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, internal_rates: dict,
-                 target_mismatches: MismatchPattern):
+                 target_mismatches: MismatchPattern, *args, **kwargs):
         Searcher.__init__(self, on_target_landscape, mismatch_penalties,
-                          internal_rates)
+                          internal_rates, *args, **kwargs)
 
         # check dimensions of mismatch position array
         if target_mismatches.length != self.guide_length:
@@ -199,10 +284,10 @@ class SearcherTargetComplex(Searcher):
         self.off_target_landscape = self._get_off_target_landscape()
         self.backward_rate_array = self._get_backward_rate_array()
 
-    def generate_dead_clone(self):
+    def generate_dead_clone(self) -> 'SearcherTargetComplex':
         """Returns SearcherTargetComplex object with zero catalytic
         activity"""
-        dead_searcher = Searcher.generate_dead_clone(self)
+        dead_searcher = super().generate_dead_clone()
         dead_complex = dead_searcher.probe_target(self.target_mismatches)
         return dead_complex
 
@@ -489,25 +574,41 @@ class SearcherTargetComplex(Searcher):
         return bound_fraction
 
 
-class SearcherSequenceComplex(BareSearcher, SearcherTargetComplex):
+class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
 
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, internal_rates: dict,
-                 guide_target_hybrid: GuideTargetHybrid):
+                 protospacer: str, target_seq: str):
 
-        self.hybrid = guide_target_hybrid
-        mismatch_pattern = guide_target_hybrid.get_mismatch_pattern()
-        super().__init__(on_target_landscape, mismatch_penalties,
-                         internal_rates, mismatch_pattern)
+        self.protospacer = protospacer
+        self.target_seq = target_seq
+        self.hybrid = GuideTargetHybrid.from_cas9_offtarget(
+            protospacer=protospacer,
+            offtarget_seq=self.target_seq
+        )
+        target_mismatches = self.hybrid.get_mismatch_pattern()
+
+        super().__init__(
+            on_target_landscape=on_target_landscape,
+            mismatch_penalties=mismatch_penalties,
+            internal_rates=internal_rates,
+            target_mismatches=target_mismatches,
+            protospacer=protospacer,
+        )
+
+        # check dimensions of mismatch position array
+        if target_mismatches.length != self.guide_length:
+            raise ValueError('Target array should be of same length as guide')
+        else:
+            self.target_mismatches = target_mismatches
+
+        self.off_target_landscape = self._get_off_target_landscape()
+        self.backward_rate_array = self._get_backward_rate_array()
 
     def _get_off_target_landscape(self):
         internal_na_energy = get_hybridization_energy(
-            guide_sequence=self.hybrid.guide,
-            target_sequence=self.hybrid.target.seq1,
-            upstream_nt=(None if self.hybrid.target.upstream_bp is None
-                         else self.hybrid.target.upstream_bp[0]),
-            downstream_nt=(None if self.hybrid.target.dnstream_bp is None
-                           else self.hybrid.target.dnstream_bp[0])
+            protospacer=self.protospacer,
+            offtarget_seq=self.target_seq,
         )[1:]
         protein_na_energy = (
             SearcherTargetComplex._get_off_target_landscape(self)
@@ -517,6 +618,6 @@ class SearcherSequenceComplex(BareSearcher, SearcherTargetComplex):
     def generate_dead_clone(self):
         """Returns SearcherSequenceComplex object with zero catalytic
         activity"""
-        dead_searcher = super().generate_dead_clone(self)
-        dead_complex = dead_searcher.probe_explicit_target(self.hybrid)
+        dead_searcher = super(GuidedSearcher).generate_dead_clone()
+        dead_complex = dead_searcher.probe_sequence(self.target_seq)
         return dead_complex
