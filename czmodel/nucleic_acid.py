@@ -205,7 +205,7 @@ def get_hybridization_energy(protospacer: str,
 
     # prepare NearestNeighborModel
     nnmodel = NearestNeighborModel
-    NearestNeighborModel.load_data()
+    nnmodel.load_data()
     nnmodel.set_energy_unit("kbt")
 
     # do calculations
@@ -223,6 +223,37 @@ def make_hybr_energy_func(protospacer: str):
         return get_hybridization_energy(protospacer, offtarget_seq)
 
     return get_hybr_energy_fixed_protospacer
+
+
+def find_average_mm_penalties(protospacer: str):
+
+    # prepare NearestNeighborModel
+    nnmodel = NearestNeighborModel
+    nnmodel.load_data()
+    nnmodel.set_energy_unit("kbt")
+
+    on_target_hybrid = GuideTargetHybrid.from_cas9_protospacer(protospacer)
+    u_ontarget = nnmodel.get_hybridization_energy(on_target_hybrid)[-1]
+
+    basepairs = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+    avg_smm_penalties = np.zeros(20)
+    for i in range(20):
+        mm_hybr_energies = []
+
+        for nt in basepairs.keys():
+            ps_nt = on_target_hybrid.target.seq2[-(i+1)]
+            if nt == ps_nt:
+                continue
+
+            off_target_hybrid = on_target_hybrid.apply_point_mut(
+                f"{ps_nt}{i+1:02d}{nt}"  # e.g. A04T
+            )
+            u_final = nnmodel.get_hybridization_energy(off_target_hybrid)[-1]
+            mm_hybr_energies += [u_final]
+
+        avg_smm_penalties[i] = np.mean(mm_hybr_energies) - u_ontarget
+
+    return avg_smm_penalties
 
 
 class TargetDna:
@@ -556,8 +587,8 @@ class NearestNeighborModel:
     # paths relative to crisprzipper source root
     dna_dna_params_file = "nucleicacid_params/santaluciahicks2004.json"
     rna_dna_params_file = "nucleicacid_params/alkan2018.json"
-    dna_dna_params: None
-    rna_dna_params: None
+    dna_dna_params: dict = None
+    rna_dna_params: dict = None
 
     energy_unit = "kbt"  # alternative: kcalmol
 
