@@ -149,6 +149,7 @@ def get_tempdir():
 
 
 def clear_cache():
+    global tempdir
     rmtree(tempdir)
 
 
@@ -194,7 +195,7 @@ def get_hybridization_energy(protospacer: str,
         # Recursive calling to include in caching
         return get_hybridization_energy(
             protospacer=protospacer,
-            offtarget_seq=hybrid.target.seq2
+            offtarget_seq=(hybrid.target.seq2 + protospacer[-3:])
         )
 
     # Prepare target DNA and guide RNA
@@ -355,8 +356,8 @@ class TargetDna:
         sequence is longer than 23, it includes the upstream nt as well."""
 
         # no upstream nt, target + PAM
-        if not full_target[-2:] == "GG":
-            raise ValueError("Full target should end with NGG PAM.")
+        if full_target[-2:] != "GG":
+            raise ValueError("Full target should end with 5'-NGG-3' PAM.")
 
         downstream_nt = full_target[-3]
         upstream_nt = (None if len(full_target) <= 23
