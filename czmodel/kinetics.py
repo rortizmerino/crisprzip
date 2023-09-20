@@ -650,6 +650,6 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
     def generate_dead_clone(self):
         """Returns SearcherSequenceComplex object with zero catalytic
         activity"""
-        dead_searcher = super(GuidedSearcher).generate_dead_clone()
+        dead_searcher = GuidedSearcher.generate_dead_clone(self)
         dead_complex = dead_searcher.probe_sequence(self.target_seq)
         return dead_complex
