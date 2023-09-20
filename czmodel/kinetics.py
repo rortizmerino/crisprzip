@@ -126,6 +126,13 @@ class Searcher:
 
 
 class BareSearcher(Searcher):
+    """The BareSearcher has no built-in energy contributions from
+    nucleic acid; its energy parameters are only due to the nonspecific
+    interactions between the protein and the target DNA. The difference
+    between the Searcher and BareSearcher values of the on_target_landscape
+    and mismatch_penalties attributes are due to nucleic acid interactions
+    as determined in the nucleic_acid module.
+    """
 
     @classmethod
     def from_searcher(cls, searcher, protospacer: str, *args, **kwargs):
@@ -147,14 +154,27 @@ class BareSearcher(Searcher):
         average_mm_penalties = find_average_mm_penalties(protospacer)
 
         return cls(
-            searcher.on_target_landscape - ontarget_na_energies[1:],
-            searcher.mismatch_penalties - average_mm_penalties,
-            searcher.internal_rates,
-            searcher.pam_detection,
+            on_target_landscape=(searcher.on_target_landscape -
+                                 ontarget_na_energies[1:]),
+            mismatch_penalties=(searcher.mismatch_penalties -
+                                average_mm_penalties),
+            internal_rates=searcher.internal_rates,
+            pam_detection=searcher.pam_detection,
+            protospacer=protospacer,  # for the GuidedSearcher constructor
             *args, **kwargs
         )
 
     def to_searcher(self, protospacer: str) -> Searcher:
+        """Adds the nearest-neighbour hybridization energies to
+        BareSearcher energy parameters to retrieve a 'normal' Searcher
+        object with effective landscape and (average) mismatch penalties.
+
+        Parameters
+        ----------
+        protospacer: str
+            Full sequence of the protospacer/on-target: 5'-20nt-PAM-3',
+            possibly preceded by the upstream sequence.
+        """
 
         ontarget_na_energies = get_hybridization_energy(protospacer)
         average_mm_penalties = find_average_mm_penalties(protospacer)
@@ -167,6 +187,8 @@ class BareSearcher(Searcher):
         )
 
     def bind_guide_rna(self, protospacer: str) -> 'GuidedSearcher':
+        """Create a GuidedSearcher object by associating a BareSearcher
+        instance with a protospacer, defining the gRNA it is carrying."""
         return GuidedSearcher(
             on_target_landscape=self.on_target_landscape,
             mismatch_penalties=self.mismatch_penalties,
@@ -177,9 +199,10 @@ class BareSearcher(Searcher):
 
     def probe_target(self, target_mismatches: MismatchPattern) \
             -> 'SearcherTargetComplex':
-        raise ValueError("A BareSearcher object cannot probe a "
-                         "target because its protospacer/guide RNA is"
-                         "undefined. Use probe_sequence() instead.")
+        """Disabled, see probe_sequence()."""
+        raise ValueError("A Bare/GuidedSearcher object cannot probe a "
+                         "target without a defined sequence. Use "
+                         "probe_sequence() instead.")
 
     def probe_sequence(self, protospacer: str, target_seq: str) \
             -> 'SearcherSequenceComplex':
@@ -191,6 +214,9 @@ class BareSearcher(Searcher):
 
 
 class GuidedSearcher(BareSearcher):
+    """Similar to the BareSearcher but with a predefined protospacer/
+    gRNA. This way, you only have to provide target sequences to
+    simulate binding at different DNA sites."""
 
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, internal_rates: dict,
@@ -202,6 +228,16 @@ class GuidedSearcher(BareSearcher):
         self.protospacer = None
         self.guide_rna = None
         self.set_on_target(protospacer)
+
+    def to_searcher(self, *args, **kwargs) -> Searcher:
+        return super().to_searcher(self.protospacer)
+
+    def to_bare_searcher(self) -> BareSearcher:
+        return BareSearcher(
+            on_target_landscape=self.on_target_landscape,
+            mismatch_penalties=self.mismatch_penalties,
+            internal_rates=self.internal_rates
+        )
 
     def set_on_target(self, protospacer: str) -> None:
         self.protospacer = protospacer
@@ -219,19 +255,9 @@ class GuidedSearcher(BareSearcher):
         )
         return dead_searcher
 
-    def probe_target(self, target_mismatches: MismatchPattern) \
-            -> 'SearcherTargetComplex':
-        raise ValueError("A GuidedSearcher object cannot probe a "
-                         "target without a defined sequence. Use "
-                         "probe_sequence() instead.")
-
     def probe_sequence(self, target_seq: str, *args, **kwargs) -> \
             'SearcherSequenceComplex':
-        return SearcherSequenceComplex(self.on_target_landscape,
-                                       self.mismatch_penalties,
-                                       self.internal_rates,
-                                       protospacer=self.protospacer,
-                                       target_seq=target_seq)
+        return super().probe_sequence(self.protospacer, target_seq)
 
 
 class SearcherTargetComplex(Searcher):
@@ -575,6 +601,12 @@ class SearcherTargetComplex(Searcher):
 
 
 class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
+    """The SearcherSequenceComplex is like a SearcherTargetComplex,
+    but with sequence-specific nucleic acid contributions. The most
+    important difference is how it calculates its "off-target landscape",
+    the sum of all energetic contributions: protein landscape, protein
+    penalties, DNA opening energy and RNA-DNA hybridization energy.
+    """
 
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, internal_rates: dict,
