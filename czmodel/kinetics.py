@@ -565,7 +565,7 @@ class SearcherTargetComplex(Searcher):
         cleaved_fraction = prob_distr.T[-1]
         return cleaved_fraction
 
-    def get_bound_fraction(self, time: float,
+    def get_bound_fraction(self, time: Union[float, np.ndarray],
                            on_rate: Union[float, np.ndarray] = 1E-3) \
             -> np.ndarray:
         """
@@ -574,8 +574,8 @@ class SearcherTargetComplex(Searcher):
 
         Parameters
         ----------
-        time: float
-            Time at which the cleaved fraction is calculated
+        time: Union[float, np.ndarray]
+            Time(s) at which the cleaved fraction is calculated
         on_rate: Union[float, np.ndarray]
             Rates (Hz) with which the searcher binds the target from solution.
 
