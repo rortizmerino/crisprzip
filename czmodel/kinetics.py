@@ -86,8 +86,13 @@ class Searcher:
         self.mismatch_penalties = mismatch_penalties
         self.internal_rates = internal_rates
 
-    def get_forward_rate_array(self, k_on):
+    def get_forward_rate_array(self, k_on, dead=False):
         """Turns the forward rate dictionary into proper array"""
+        if not dead:
+            k_clv = self.internal_rates['k_clv'] * np.ones(1)
+        else:
+            k_clv = np.zeros(1)
+
         forward_rate_array = np.concatenate(
             #  solution state
             (k_on * np.ones(1),
@@ -95,22 +100,11 @@ class Searcher:
              self.internal_rates['k_f'] *
              np.ones(self.on_target_landscape.size),
              # final/complete R-loop state
-             self.internal_rates['k_clv'] * np.ones(1),
+             k_clv,
              # cleaved state
              np.zeros(1))
         )
         return forward_rate_array
-
-    def generate_dead_clone(self) -> 'Searcher':
-        """Returns Searcher object with zero catalytic activity"""
-        dead_forward_rate_dict = self.internal_rates.copy()
-        dead_forward_rate_dict['k_clv'] = 0
-        dead_searcher = Searcher(
-            on_target_landscape=self.on_target_landscape,
-            mismatch_penalties=self.mismatch_penalties,
-            internal_rates=dead_forward_rate_dict
-        )
-        return dead_searcher
 
     def probe_target(self, target_mismatches: MismatchPattern) \
             -> 'SearcherTargetComplex':
@@ -243,18 +237,6 @@ class GuidedSearcher(BareSearcher):
         self.protospacer = protospacer
         self.guide_rna = protospacer[-23:-3].replace("T", "U")
 
-    def generate_dead_clone(self) -> 'GuidedSearcher':
-        """Returns GuidedSearcher object with zero catalytic activity"""
-        dead_forward_rate_dict = self.internal_rates.copy()
-        dead_forward_rate_dict['k_clv'] = 0
-        dead_searcher = GuidedSearcher(
-            on_target_landscape=self.on_target_landscape,
-            mismatch_penalties=self.mismatch_penalties,
-            internal_rates=dead_forward_rate_dict,
-            protospacer=self.protospacer
-        )
-        return dead_searcher
-
     def probe_sequence(self, target_seq: str, *args, **kwargs) -> \
             'SearcherSequenceComplex':
         return super().probe_sequence(self.protospacer, target_seq)
@@ -310,13 +292,6 @@ class SearcherTargetComplex(Searcher):
         self.off_target_landscape = self._get_off_target_landscape()
         self.backward_rate_array = self._get_backward_rate_array()
 
-    def generate_dead_clone(self) -> 'SearcherTargetComplex':
-        """Returns SearcherTargetComplex object with zero catalytic
-        activity"""
-        dead_searcher = super().generate_dead_clone()
-        dead_complex = dead_searcher.probe_target(self.target_mismatches)
-        return dead_complex
-
     def _get_off_target_landscape(self):
         """Adds penalties due to mismatches to landscape"""
         landscape_penalties = np.cumsum(
@@ -369,11 +344,11 @@ class SearcherTargetComplex(Searcher):
         )
         return backward_rate_array
 
-    def get_rate_matrix(self, on_rate: float) -> np.ndarray:
+    def get_rate_matrix(self, on_rate: float, dead=False) -> np.ndarray:
         """Sets up the rate matrix describing the master equation"""
 
         # shallow copy to prevent overwriting due to concentration
-        forward_rates = self.get_forward_rate_array(k_on=on_rate)
+        forward_rates = self.get_forward_rate_array(k_on=on_rate, dead=dead)
         backward_rates = self.backward_rate_array.copy()
 
         diagonal1 = -(forward_rates + backward_rates)
@@ -388,7 +363,8 @@ class SearcherTargetComplex(Searcher):
     def solve_master_equation(self, initial_condition: np.ndarray,
                               time: Union[float, np.ndarray],
                               on_rate: Union[float, np.ndarray],
-                              rebinding=True, mode='fast') -> np.ndarray:
+                              dead=False, rebinding=True, mode='fast') ->\
+            np.ndarray:
 
         """
         Calculates how the occupancy of the landscape states evolves by
@@ -406,6 +382,9 @@ class SearcherTargetComplex(Searcher):
             Times at which the master equation is evaluated.
         on_rate: Union[float, np.ndarray]
             Rate (Hz) with which the searcher binds the target from solution.
+        dead: bool
+            If true, cleavage rate is set to zero to simulate the
+            catalytically inactive dCas9 variant.
         rebinding: bool
             If true, on-rate is left intact, if false, on-rate is set
             to zero and solution state becomes absorbing.
@@ -450,7 +429,7 @@ class SearcherTargetComplex(Searcher):
 
         # variable time
         if vary_time:
-            rate_matrix = self.get_rate_matrix(on_rate)
+            rate_matrix = self.get_rate_matrix(on_rate, dead=dead)
 
             # trivial case
             if not isinstance(time, np.ndarray) and np.isclose(time, 0.):
@@ -475,7 +454,7 @@ class SearcherTargetComplex(Searcher):
         # variable k_on
         elif vary_k_on:
             # This reference rate matrix will be updated repeatedly
-            ref_rate_matrix = self.get_rate_matrix(0.)
+            ref_rate_matrix = self.get_rate_matrix(0., dead=dead)
 
             # where the magic happens; evaluating the master equation
             if mode == 'fast':
@@ -527,19 +506,8 @@ class SearcherTargetComplex(Searcher):
 
         return np.squeeze(landscape_occupancy.T)
 
-    def get_cleavage_probability(self) -> float:
-        """Returns the probability that a searcher in the PAM state (if
-        present, otherwise b=1) cleaves a target before having left
-        it."""
-
-        forward_rates = self.get_forward_rate_array[1:-1]
-        backward_rates = self.backward_rate_array[1:-1]
-        gamma = backward_rates / forward_rates
-        cleavage_probability = 1 / (1 + gamma.cumprod().sum())
-        return cleavage_probability
-
     def get_cleaved_fraction(self, time: Union[float, np.ndarray],
-                             on_rate: float = 1E-3) -> np.ndarray:
+                             on_rate: float) -> np.ndarray:
         """
         Returns the fraction of cleaved targets after a specified time
 
@@ -566,8 +534,7 @@ class SearcherTargetComplex(Searcher):
         return cleaved_fraction
 
     def get_bound_fraction(self, time: Union[float, np.ndarray],
-                           on_rate: Union[float, np.ndarray] = 1E-3) \
-            -> np.ndarray:
+                           on_rate: Union[float, np.ndarray]) -> np.ndarray:
         """
         Returns the fraction of bound targets after a specified time,
         assuming that searcher is catalytically dead/inactive.
@@ -589,13 +556,8 @@ class SearcherTargetComplex(Searcher):
         unbound_state = np.concatenate(
             (np.ones(1), np.zeros(self.on_target_landscape.size + 2))
         )
-        # setting up clone SearcherTargetComplex object with zero
-        # catalytic activity, k_clv=0
-        dead_searcher_complex = self.generate_dead_clone()
-
-        prob_distr = \
-            dead_searcher_complex.solve_master_equation(unbound_state, time,
-                                                        on_rate)
+        prob_distr = self.solve_master_equation(unbound_state, time,
+                                                on_rate, dead=True)
         bound_fraction = 1 - prob_distr.T[0]
         return bound_fraction
 
@@ -646,10 +608,3 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
             SearcherTargetComplex._get_off_target_landscape(self)
         )
         return protein_na_energy + internal_na_energy
-
-    def generate_dead_clone(self):
-        """Returns SearcherSequenceComplex object with zero catalytic
-        activity"""
-        dead_searcher = GuidedSearcher.generate_dead_clone(self)
-        dead_complex = dead_searcher.probe_sequence(self.target_seq)
-        return dead_complex
