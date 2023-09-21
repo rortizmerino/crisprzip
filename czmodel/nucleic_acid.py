@@ -198,6 +198,8 @@ def get_hybridization_energy(protospacer: str,
             offtarget_seq=(hybrid.target.seq2 + protospacer[-3:])
         )
 
+    print(protospacer, offtarget_seq)
+
     # Prepare target DNA and guide RNA
     hybrid = GuideTargetHybrid.from_cas9_offtarget(offtarget_seq,
                                                    protospacer)
