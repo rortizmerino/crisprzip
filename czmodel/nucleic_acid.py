@@ -193,12 +193,13 @@ def get_hybridization_energy(protospacer: str,
         hybrid = GuideTargetHybrid.from_cas9_protospacer(protospacer,
                                                          mutations)
         # Recursive calling to include in caching
+        offtarget_seq = hybrid.target.seq2 + protospacer[-3:]
+        if hybrid.target.upstream_nt is not None:
+            offtarget_seq = hybrid.target.upstream_nt + offtarget_seq
         return get_hybridization_energy(
             protospacer=protospacer,
-            offtarget_seq=(hybrid.target.seq2 + protospacer[-3:])
+            offtarget_seq=offtarget_seq
         )
-
-    print(protospacer, offtarget_seq)
 
     # Prepare target DNA and guide RNA
     hybrid = GuideTargetHybrid.from_cas9_offtarget(offtarget_seq,
