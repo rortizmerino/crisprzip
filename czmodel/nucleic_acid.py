@@ -158,7 +158,7 @@ memory = Memory(tempdir, verbose=0)
 
 
 def make_hybr_energy_func(protospacer: str,
-                          weight: Union[float, Tuple[float]] = None):
+                          weight: Union[float, Tuple[float, float]] = None):
     """Wrapper of get_hybridization_energy that makes a hybridization
     energy function which ony takes offtarget_seq as an argument, with
     the protospacer having been predefined."""
@@ -173,7 +173,8 @@ def make_hybr_energy_func(protospacer: str,
 def get_hybridization_energy(protospacer: str,
                              offtarget_seq: str = None,
                              mutations: str = '',
-                             weight: Union[float, Tuple[float]] = None) \
+                             weight: Union[float,
+                                           Tuple[float, float]] = None) \
         -> np.ndarray:
 
     """
@@ -194,7 +195,7 @@ def get_hybridization_energy(protospacer: str,
         target deviates from the protospacer. Multiple mismatches
         should be space-separated. Is empty by default, indicating
         no mismatches (=on-target hybridization energy).
-    weight: Union[float, Tuple[float]]
+    weight: Union[float, Tuple[float, float]]
         Optional weighing of the dna opening energy and rna duplex energy.
         If None (default), no weighin is applied. If float, both dna and
         rna energies are multiplied by the weight parameter. If tuple
@@ -255,7 +256,8 @@ def get_na_energies_cached(protospacer: str, offtarget_seq: str = None) -> \
 
 
 def find_average_mm_penalties(protospacer: str,
-                              weight: Union[float, Tuple[float]] = None):
+                              weight: Union[float,
+                                            Tuple[float, float]] = None):
     """Finds the effective penalties for all possible single point mutations
     on a target, and averages over them to return the position-dependent
     mismatch penalty due to undetermined mismatches."""
@@ -655,7 +657,8 @@ class NearestNeighborModel:
 
     @classmethod
     def get_hybridization_energy(cls, hybrid: GuideTargetHybrid,
-                                 weight: Union[float, Tuple[float]] = None) \
+                                 weight: Union[float,
+                                               Tuple[float, float]] = None) \
             -> np.ndarray:
         """Calculates the energy that is required to open an R-loop
          between the guide RNA and target DNA of the hybrid object
@@ -665,7 +668,7 @@ class NearestNeighborModel:
          ----------
          hybrid: GuideTargetHybrid
             Hybrid object of which the hybridization energies are calculated
-         weight: Union[float, Tuple[float]]
+         weight: Union[float, Tuple[float, float]]
             Optional weighing of the dna opening energy and rna duplex energy.
             If None (default), no weighin is applied. If float, both dna and
             rna energies are multiplied by the weight parameter. If tuple
