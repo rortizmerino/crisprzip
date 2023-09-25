@@ -21,7 +21,7 @@ import os
 import random
 from pathlib import Path
 from shutil import rmtree
-from typing import Union, List
+from typing import Union, List, Tuple
 
 import numpy as np
 from joblib import Memory
@@ -160,7 +160,9 @@ memory = Memory(tempdir, verbose=0)
 @memory.cache
 def get_hybridization_energy(protospacer: str,
                              offtarget_seq: str = None,
-                             mutations: str = '') -> np.ndarray:
+                             mutations: str = '',
+                             weight: Union[float, Tuple[float]] = None) \
+        -> np.ndarray:
 
     """
     Calculates the free energy cost associated with the progressive
@@ -180,6 +182,13 @@ def get_hybridization_energy(protospacer: str,
         target deviates from the protospacer. Multiple mismatches
         should be space-separated. Is empty by default, indicating
         no mismatches (=on-target hybridization energy).
+    weight: Union[float, Tuple[float]]
+        Optional weighing of the dna opening energy and rna duplex energy.
+        If None (default), no weighin is applied. If float, both dna and
+        rna energies are multiplied by the weight parameter. If tuple
+        of two floats, the first value is used as a multiplier for the
+        DNA opening energy, and the second is used as a multiplier for the
+        RNA-DNA hybridization energy.
 
     Returns
     -------
@@ -198,7 +207,8 @@ def get_hybridization_energy(protospacer: str,
             offtarget_seq = hybrid.target.upstream_nt + offtarget_seq
         return get_hybridization_energy(
             protospacer=protospacer,
-            offtarget_seq=offtarget_seq
+            offtarget_seq=offtarget_seq,
+            weight=weight
         )
 
     # Prepare target DNA and guide RNA
@@ -211,23 +221,27 @@ def get_hybridization_energy(protospacer: str,
     nnmodel.set_energy_unit("kbt")
 
     # do calculations
-    hybridization_energy = nnmodel.get_hybridization_energy(hybrid)
+    hybridization_energy = nnmodel.get_hybridization_energy(hybrid,
+                                                            weight=weight)
 
     return hybridization_energy
 
 
-def make_hybr_energy_func(protospacer: str):
+def make_hybr_energy_func(protospacer: str,
+                          weight: Union[float, Tuple[float]] = None):
     """Wrapper of get_hybridization_energy that makes a hybridization
     energy function which ony takes offtarget_seq as an argument, with
     the protospacer having been predefined."""
 
     def get_hybr_energy_fixed_protospacer(offtarget_seq: str):
-        return get_hybridization_energy(protospacer, offtarget_seq)
+        return get_hybridization_energy(protospacer, offtarget_seq,
+                                        weight=weight)
 
     return get_hybr_energy_fixed_protospacer
 
 
-def find_average_mm_penalties(protospacer: str):
+def find_average_mm_penalties(protospacer: str,
+                              weight: Union[float, Tuple[float]] = None):
     """Finds the effective penalties for all possible single point mutations
     on a target, and averages over them to return the position-dependent
     mismatch penalty due to undetermined mismatches."""
@@ -238,7 +252,8 @@ def find_average_mm_penalties(protospacer: str):
     nnmodel.set_energy_unit("kbt")
 
     on_target_hybrid = GuideTargetHybrid.from_cas9_protospacer(protospacer)
-    u_ontarget = nnmodel.get_hybridization_energy(on_target_hybrid)[-1]
+    u_ontarget = nnmodel.get_hybridization_energy(on_target_hybrid,
+                                                  weight=weight)[-1]
 
     basepairs = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
     avg_smm_penalties = np.zeros(20)
@@ -253,7 +268,8 @@ def find_average_mm_penalties(protospacer: str):
             off_target_hybrid = on_target_hybrid.apply_point_mut(
                 f"{ps_nt}{i+1:02d}{nt}"  # e.g. A04T
             )
-            u_final = nnmodel.get_hybridization_energy(off_target_hybrid)[-1]
+            u_final = nnmodel.get_hybridization_energy(off_target_hybrid,
+                                                       weight=weight)[-1]
             mm_hybr_energies += [u_final]
 
         avg_smm_penalties[i] = np.mean(mm_hybr_energies) - u_ontarget
@@ -624,15 +640,48 @@ class NearestNeighborModel:
             return energy_value / (gas_constant * ref_temp)
 
     @classmethod
-    def get_hybridization_energy(cls, hybrid: GuideTargetHybrid) -> np.ndarray:
+    def get_hybridization_energy(cls, hybrid: GuideTargetHybrid,
+                                 weight: Union[float, Tuple[float]] = None) \
+            -> np.ndarray:
         """Calculates the energy that is required to open an R-loop
          between the guide RNA and target DNA of the hybrid object
-         for each R-loop length. Converts energy units if necessary."""
+         for each R-loop length. Converts energy units if necessary.
+
+         Parameters
+         ----------
+         hybrid: GuideTargetHybrid
+            Hybrid object of which the hybridization energies are calculated
+         weight: Union[float, Tuple[float]]
+            Optional weighing of the dna opening energy and rna duplex energy.
+            If None (default), no weighin is applied. If float, both dna and
+            rna energies are multiplied by the weight parameter. If tuple
+            of two floats, the first value is used as a multiplier for the
+            DNA opening energy, and the second is used as a multiplier for the
+            RNA-DNA hybridization energy.
+
+         Returns
+         -------
+         energy: np.ndarray
+            The energy required for hybridization (in the desired units of
+            energy), for each step in the R-loop formation process.
+         """
         dna_opening_energy = cls.__dna_opening_energy(hybrid)
         rna_duplex_energy = cls.__rna_duplex_energy(hybrid)
-        return cls.convert_units(
-            dna_opening_energy + rna_duplex_energy
-        )
+        if weight is None:
+            return cls.convert_units(
+                dna_opening_energy + rna_duplex_energy
+            )
+        elif type(weight) is float:
+            return weight * cls.convert_units(
+                dna_opening_energy + rna_duplex_energy
+            )
+        elif type(weight) is tuple:
+            return cls.convert_units(
+                weight[0] * dna_opening_energy +
+                weight[1] * rna_duplex_energy
+            )
+        else:
+            raise ValueError(f"Cannot interpret weight of type {type(weight)}")
 
     @classmethod
     def __dna_opening_energy(cls, hybrid: GuideTargetHybrid) -> np.ndarray:
