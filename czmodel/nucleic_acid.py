@@ -157,7 +157,19 @@ tempdir = get_tempdir()
 memory = Memory(tempdir, verbose=0)
 
 
-@memory.cache
+def make_hybr_energy_func(protospacer: str,
+                          weight: Union[float, Tuple[float]] = None):
+    """Wrapper of get_hybridization_energy that makes a hybridization
+    energy function which ony takes offtarget_seq as an argument, with
+    the protospacer having been predefined."""
+
+    def get_hybr_energy_fixed_protospacer(offtarget_seq: str):
+        return get_hybridization_energy(protospacer, offtarget_seq,
+                                        weight=weight)
+
+    return get_hybr_energy_fixed_protospacer
+
+
 def get_hybridization_energy(protospacer: str,
                              offtarget_seq: str = None,
                              mutations: str = '',
@@ -211,6 +223,21 @@ def get_hybridization_energy(protospacer: str,
             weight=weight
         )
 
+    # do calculations
+    dna_energy, rna_energy = get_na_energies_cached(protospacer, offtarget_seq)
+    if weight is None:
+        return dna_energy + rna_energy
+    elif type(weight) is float:
+        return weight * (dna_energy + rna_energy)
+    elif type(weight) is tuple:
+        return (weight[0] * dna_energy +
+                weight[1] * rna_energy)
+
+
+@memory.cache
+def get_na_energies_cached(protospacer: str, offtarget_seq: str = None) -> \
+        Tuple[np.ndarray, np.ndarray]:
+
     # Prepare target DNA and guide RNA
     hybrid = GuideTargetHybrid.from_cas9_offtarget(offtarget_seq,
                                                    protospacer)
@@ -221,23 +248,10 @@ def get_hybridization_energy(protospacer: str,
     nnmodel.set_energy_unit("kbt")
 
     # do calculations
-    hybridization_energy = nnmodel.get_hybridization_energy(hybrid,
-                                                            weight=weight)
+    dna_opening_energy = nnmodel.dna_opening_energy(hybrid)
+    rna_duplex_energy = nnmodel.rna_duplex_energy(hybrid)
 
-    return hybridization_energy
-
-
-def make_hybr_energy_func(protospacer: str,
-                          weight: Union[float, Tuple[float]] = None):
-    """Wrapper of get_hybridization_energy that makes a hybridization
-    energy function which ony takes offtarget_seq as an argument, with
-    the protospacer having been predefined."""
-
-    def get_hybr_energy_fixed_protospacer(offtarget_seq: str):
-        return get_hybridization_energy(protospacer, offtarget_seq,
-                                        weight=weight)
-
-    return get_hybr_energy_fixed_protospacer
+    return dna_opening_energy, rna_duplex_energy
 
 
 def find_average_mm_penalties(protospacer: str,
@@ -665,8 +679,8 @@ class NearestNeighborModel:
             The energy required for hybridization (in the desired units of
             energy), for each step in the R-loop formation process.
          """
-        dna_opening_energy = cls.__dna_opening_energy(hybrid)
-        rna_duplex_energy = cls.__rna_duplex_energy(hybrid)
+        dna_opening_energy = cls.dna_opening_energy(hybrid)
+        rna_duplex_energy = cls.rna_duplex_energy(hybrid)
         if weight is None:
             return cls.convert_units(
                 dna_opening_energy + rna_duplex_energy
@@ -684,7 +698,7 @@ class NearestNeighborModel:
             raise ValueError(f"Cannot interpret weight of type {type(weight)}")
 
     @classmethod
-    def __dna_opening_energy(cls, hybrid: GuideTargetHybrid) -> np.ndarray:
+    def dna_opening_energy(cls, hybrid: GuideTargetHybrid) -> np.ndarray:
         """Calculated following the methods from Alkan et al. (2018).
         The DNA opening energy is the sum of all the basestack energies
         in the sequence (negative)."""
@@ -750,7 +764,7 @@ class NearestNeighborModel:
         return open_energy
 
     @classmethod
-    def __rna_duplex_energy(cls, hybrid: GuideTargetHybrid) -> np.ndarray:
+    def rna_duplex_energy(cls, hybrid: GuideTargetHybrid) -> np.ndarray:
         """Calculated following the methods from Alkan et al. (2018).
         The RNA duplex energy has three contributions: 1) basestacks,
         2) internal loops, 3) external loops / terminals. Alkan et al.
