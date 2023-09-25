@@ -129,7 +129,9 @@ class BareSearcher(Searcher):
     """
 
     @classmethod
-    def from_searcher(cls, searcher, protospacer: str, *args, **kwargs):
+    def from_searcher(cls, searcher, protospacer: str,
+                      weight: Union[float, Tuple[float]] = None,
+                      *args, **kwargs):
         """Subtracts the nearest-neighbour hybridization energies from
         the definition of a 'normal' Searcher. Averages over the
         penalties due to single point mutations to find the difference
@@ -142,10 +144,23 @@ class BareSearcher(Searcher):
         protospacer: str
             Full sequence of the protospacer/on-target: 5'-20nt-PAM-3',
             possibly preceded by the upstream sequence.
+        weight: Union[float, Tuple[float]]
+            Optional weighing of the dna opening energy and rna duplex energy.
+            If None (default), no weighin is applied. If float, both dna and
+            rna energies are multiplied by the weight parameter. If tuple
+            of two floats, the first value is used as a multiplier for the
+            DNA opening energy, and the second is used as a multiplier for the
+            RNA-DNA hybridization energy.
         """
 
-        ontarget_na_energies = get_hybridization_energy(protospacer)
-        average_mm_penalties = find_average_mm_penalties(protospacer)
+        ontarget_na_energies = get_hybridization_energy(
+            protospacer=protospacer,
+            weight=weight
+        )
+        average_mm_penalties = find_average_mm_penalties(
+            protospacer=protospacer,
+            weight=weight
+        )
 
         return cls(
             on_target_landscape=(searcher.on_target_landscape -
@@ -158,7 +173,8 @@ class BareSearcher(Searcher):
             *args, **kwargs
         )
 
-    def to_searcher(self, protospacer: str) -> Searcher:
+    def to_searcher(self, protospacer: str,
+                    weight: Union[float, Tuple[float]] = None) -> Searcher:
         """Adds the nearest-neighbour hybridization energies to
         BareSearcher energy parameters to retrieve a 'normal' Searcher
         object with effective landscape and (average) mismatch penalties.
@@ -168,10 +184,23 @@ class BareSearcher(Searcher):
         protospacer: str
             Full sequence of the protospacer/on-target: 5'-20nt-PAM-3',
             possibly preceded by the upstream sequence.
+        weight: Union[float, Tuple[float]]
+            Optional weighing of the dna opening energy and rna duplex energy.
+            If None (default), no weighin is applied. If float, both dna and
+            rna energies are multiplied by the weight parameter. If tuple
+            of two floats, the first value is used as a multiplier for the
+            DNA opening energy, and the second is used as a multiplier for the
+            RNA-DNA hybridization energy.
         """
 
-        ontarget_na_energies = get_hybridization_energy(protospacer)
-        average_mm_penalties = find_average_mm_penalties(protospacer)
+        ontarget_na_energies = get_hybridization_energy(
+            protospacer=protospacer,
+            weight=weight
+        )
+        average_mm_penalties = find_average_mm_penalties(
+            protospacer=protospacer,
+            weight=weight
+        )
 
         return Searcher(
             self.on_target_landscape + ontarget_na_energies[1:],
@@ -198,13 +227,15 @@ class BareSearcher(Searcher):
                          "target without a defined sequence. Use "
                          "probe_sequence() instead.")
 
-    def probe_sequence(self, protospacer: str, target_seq: str) \
+    def probe_sequence(self, protospacer: str, target_seq: str,
+                       weight: Union[float, Tuple[float]] = None) \
             -> 'SearcherSequenceComplex':
         return SearcherSequenceComplex(self.on_target_landscape,
                                        self.mismatch_penalties,
                                        self.internal_rates,
                                        protospacer=protospacer,
-                                       target_seq=target_seq)
+                                       target_seq=target_seq,
+                                       weight=weight)
 
 
 class GuidedSearcher(BareSearcher):
@@ -214,17 +245,19 @@ class GuidedSearcher(BareSearcher):
 
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, internal_rates: dict,
-                 protospacer: str, *args, **kwargs):
+                 protospacer: str, weight: Union[float, Tuple[float]] = None,
+                 *args, **kwargs):
         super().__init__(on_target_landscape=on_target_landscape,
                          mismatch_penalties=mismatch_penalties,
                          internal_rates=internal_rates,
                          *args, **kwargs)
         self.protospacer = None
         self.guide_rna = None
+        self.weight = weight
         self.set_on_target(protospacer)
 
     def to_searcher(self, *args, **kwargs) -> Searcher:
-        return super().to_searcher(self.protospacer)
+        return super().to_searcher(self.protospacer, self.weight)
 
     def to_bare_searcher(self) -> BareSearcher:
         return BareSearcher(
@@ -239,7 +272,8 @@ class GuidedSearcher(BareSearcher):
 
     def probe_sequence(self, target_seq: str, *args, **kwargs) -> \
             'SearcherSequenceComplex':
-        return super().probe_sequence(self.protospacer, target_seq)
+        return super().probe_sequence(self.protospacer, target_seq,
+                                      weight=self.weight)
 
 
 class SearcherTargetComplex(Searcher):
@@ -572,7 +606,8 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
 
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, internal_rates: dict,
-                 protospacer: str, target_seq: str):
+                 protospacer: str, target_seq: str,
+                 weight: Union[float, Tuple[float]] = None):
 
         self.protospacer = protospacer
         self.target_seq = target_seq
@@ -588,6 +623,7 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
             internal_rates=internal_rates,
             target_mismatches=target_mismatches,
             protospacer=protospacer,
+            weight=weight
         )
 
         # check dimensions of mismatch position array
@@ -603,6 +639,7 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
         internal_na_energy = get_hybridization_energy(
             protospacer=self.protospacer,
             offtarget_seq=self.target_seq,
+            weight=self.weight
         )[1:]
         protein_na_energy = (
             SearcherTargetComplex._get_off_target_landscape(self)
