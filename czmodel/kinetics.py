@@ -210,7 +210,9 @@ class BareSearcher(Searcher):
             self.pam_detection
         )
 
-    def bind_guide_rna(self, protospacer: str) -> 'GuidedSearcher':
+    def bind_guide_rna(self, protospacer: str,
+                       weight: Union[float, Tuple[float, float]] = None) \
+            -> 'GuidedSearcher':
         """Create a GuidedSearcher object by associating a BareSearcher
         instance with a protospacer, defining the gRNA it is carrying."""
         return GuidedSearcher(
@@ -218,7 +220,8 @@ class BareSearcher(Searcher):
             mismatch_penalties=self.mismatch_penalties,
             internal_rates=self.internal_rates,
             pam_detection=self.pam_detection,
-            protospacer=protospacer
+            protospacer=protospacer,
+            weight=weight,
         )
 
     def probe_target(self, target_mismatches: MismatchPattern) \
@@ -272,10 +275,13 @@ class GuidedSearcher(BareSearcher):
         self.protospacer = protospacer
         self.guide_rna = protospacer[-23:-3].replace("T", "U")
 
-    def probe_sequence(self, target_seq: str, *args, **kwargs) -> \
-            'SearcherSequenceComplex':
+    def probe_sequence(self, target_seq: str,
+                       weight: Union[float, Tuple[float, float]] = None,
+                       *args, **kwargs) -> 'SearcherSequenceComplex':
+        if weight is None:
+            weight = self.weight
         return super().probe_sequence(self.protospacer, target_seq,
-                                      weight=self.weight)
+                                      weight=weight)
 
 
 class SearcherTargetComplex(Searcher):
