@@ -228,7 +228,7 @@ def get_hybridization_energy(protospacer: str,
     dna_energy, rna_energy = get_na_energies_cached(protospacer, offtarget_seq)
     if weight is None:
         return dna_energy + rna_energy
-    elif type(weight) is float:
+    elif isinstance(weight, (float, int, np.floating, np.integer)):
         return weight * (dna_energy + rna_energy)
     elif type(weight) is tuple:
         return (weight[0] * dna_energy +
