@@ -576,7 +576,8 @@ class SearcherTargetComplex(Searcher):
         return cleaved_fraction
 
     def get_bound_fraction(self, time: Union[float, np.ndarray],
-                           on_rate: Union[float, np.ndarray]) -> np.ndarray:
+                           on_rate: Union[float, np.ndarray],
+                           pam_inclusion: float = 1.) -> np.ndarray:
         """
         Returns the fraction of bound targets after a specified time,
         assuming that searcher is catalytically dead/inactive.
@@ -587,6 +588,10 @@ class SearcherTargetComplex(Searcher):
             Time(s) at which the cleaved fraction is calculated
         on_rate: Union[float, np.ndarray]
             Rates (Hz) with which the searcher binds the target from solution.
+        pam_inclusion: float
+            Contribution of the PAM state to the bound fraction. When 1.0
+            (default), all PAM-bound searchers contribute to the bound
+            fraction, when 0.0, nothing does.
 
         Returns
         -------
@@ -595,12 +600,18 @@ class SearcherTargetComplex(Searcher):
             t and with binding rates on_rate.
         """
 
+        if not 0. <= pam_inclusion <= 1.:
+            raise ValueError(f"PAM inclusion should be between 0. (no PAM "
+                             f"contribution) and 1. (full PAM contribution) "
+                             f"but is {pam_inclusion:.1f}.")
+
         unbound_state = np.concatenate(
             (np.ones(1), np.zeros(self.on_target_landscape.size + 2))
         )
         prob_distr = self.solve_master_equation(unbound_state, time,
                                                 on_rate, dead=True)
-        bound_fraction = 1 - prob_distr.T[0]
+        bound_fraction = (1 - prob_distr.T[0] +
+                          - prob_distr.T[1] * (1 - pam_inclusion))
         return bound_fraction
 
 
