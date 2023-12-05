@@ -445,12 +445,9 @@ class SearcherTargetComplex(Searcher):
         """
 
         # check dimensions initial condition
-        no_states = 3 + self.on_target_landscape.size
-        if initial_condition.shape[0] != no_states:
-            initial_condition = initial_condition.T
-            if initial_condition.shape[0] != no_states:
-                raise ValueError('Initial condition should be of same '
-                                 'length as hybridization landscape.')
+        if initial_condition.size != (3 + self.on_target_landscape.size):
+            raise ValueError('Initial condition should be of same length as'
+                             'hybridization landscape')
 
         # if rebinding is prohibited, on-rate should be zero
         if not rebinding:
@@ -463,14 +460,12 @@ class SearcherTargetComplex(Searcher):
         vary_k_on = (False if ((not isinstance(on_rate, np.ndarray)) or
                                on_rate.size == 1)
                      else True)
-        vary_init = (False if initial_condition.ndim == 1 else True)
 
         # variable time and k_on: no support (yet)
-        if (vary_time + vary_k_on + vary_init) > 1:
-            raise ValueError("Cannot iterate over both multiple arguments."
-                             "Choose either variable time, k_on, or init.")
+        if vary_time and vary_k_on:
+            raise ValueError("Cannot iterate over both time and k_on.")
 
-        # unique time & k_on (or variable init): handle as variable time
+        # unique time & k_on: handle as variable time
         if not (vary_time or vary_k_on):
             vary_time = True
 
