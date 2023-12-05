@@ -480,7 +480,7 @@ class SearcherTargetComplex(Searcher):
 
             # trivial case
             if not isinstance(time, np.ndarray) and np.isclose(time, 0.):
-                return initial_condition
+                return initial_condition.T
 
             # making sure that time is a 1d ndarray
             time = np.atleast_1d(time)
@@ -551,10 +551,7 @@ class SearcherTargetComplex(Searcher):
         landscape_occupancy[:, unsafe] = (landscape_occupancy[:, unsafe] *
                                           float('nan'))
 
-        if np.squeeze(landscape_occupancy).shape[0] == 23:
-            return np.squeeze(landscape_occupancy.T)
-        else:
-            return np.squeeze(landscape_occupancy)
+        return np.squeeze(landscape_occupancy.T)
 
     def get_cleaved_fraction(self, time: Union[float, np.ndarray],
                              on_rate: float) -> np.ndarray:
