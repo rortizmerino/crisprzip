@@ -551,10 +551,7 @@ class SearcherTargetComplex(Searcher):
         landscape_occupancy[:, unsafe] = (landscape_occupancy[:, unsafe] *
                                           float('nan'))
 
-        if vary_init:
-            return np.squeeze(landscape_occupancy)
-        else:
-            return np.squeeze(landscape_occupancy.T)
+        return np.squeeze(landscape_occupancy.T)
 
     def get_cleaved_fraction(self, time: Union[float, np.ndarray],
                              on_rate: float) -> np.ndarray:
