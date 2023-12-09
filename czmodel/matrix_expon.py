@@ -45,10 +45,15 @@ def exponentiate_fast(matrix: np.ndarray, time: np.ndarray):
         # 3. exp(Mt) = U B U_inv = U exp(Dt) U_inv
         distr = eigenvecs @ b_matrix @ eigenvecs_inv
 
-        exp_matrix[:, i, :] = distr
+        # Previously, strong negative terms ( <-1E-3 ) were ignored to
+        # fall back on the iterative method. Now, we set all negative
+        # terms to zero , as that seems to be more stable than the iterative
+        # method.
 
-        if np.any(distr < -1E-3):
-            return None  # strong negative terms
+        if np.any(distr < 0.):
+            distr = np.maximum(distr, 0)
+
+        exp_matrix[:, i, :] = distr
 
     return exp_matrix
 
