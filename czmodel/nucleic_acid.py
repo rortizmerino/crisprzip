@@ -863,10 +863,14 @@ class NearestNeighborModel:
                             f"d{partial_rev_tgstr[j]}"
                             f"{partial_rev_tgstr[j - 1]}"
                         )
+                        if looplen <= 9:
+                            loop_energy = loop_energies[f"{2 * looplen} nt"]
+                        else:
+                            loop_energy = 4.5
                         energy += (
                                 stacking_energies["2mer"][left_basestack] +
                                 stacking_energies["2mer"][right_basestack] +
-                                loop_energies[f"{2 * looplen} nt"]
+                                loop_energy
                         )
 
             return energy
