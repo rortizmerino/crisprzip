@@ -1,5 +1,7 @@
 # folders not to include on git
 .idea/
+build/
+crisprzip_model.egg-info/
 
 # cache
 **/__pycache__/
