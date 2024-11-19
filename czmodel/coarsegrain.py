@@ -13,7 +13,7 @@ from typing import Tuple
 import numpy as np
 from scipy.linalg import inv
 
-from .kinetics import SearcherTargetComplex
+from .kinetics import SearcherTargetComplex, SearcherSequenceComplex
 
 
 def coarse_grain_landscape(searcher_target_complex: SearcherTargetComplex,
@@ -39,14 +39,24 @@ def coarse_grain_landscape(searcher_target_complex: SearcherTargetComplex,
         been renamed (O -> P for PAM and C -> O).
     intermediate_id: int
         Location of the intermediate state.
-
     """
-    return CoarseGrainedComplex(
-        searcher_target_complex.on_target_landscape,
-        searcher_target_complex.mismatch_penalties,
-        searcher_target_complex.internal_rates,
-        searcher_target_complex.target_mismatches
-    ).get_coarse_grained_rates(intermediate_range)
+
+    if isinstance(searcher_target_complex, SearcherSequenceComplex):
+        print("ok")
+        return CoarseGrainedComplex(
+            searcher_target_complex.on_target_landscape,
+            searcher_target_complex.mismatch_penalties,
+            searcher_target_complex.internal_rates,
+            searcher_target_complex.target_mismatches
+        ).get_coarse_grained_rates(intermediate_range)
+    else:
+        print("ok2")
+        return CoarseGrainedComplex(
+            searcher_target_complex.on_target_landscape,
+            searcher_target_complex.mismatch_penalties,
+            searcher_target_complex.internal_rates,
+            searcher_target_complex.target_mismatches
+        ).get_coarse_grained_rates(intermediate_range)
 
 
 class CoarseGrainedComplex(SearcherTargetComplex):
@@ -167,3 +177,8 @@ class CoarseGrainedComplex(SearcherTargetComplex):
                        np.diag(diagonal3, k=-1))
 
         return rate_matrix
+
+
+class CoarseGrainedSequenceComplex(SearcherSequenceComplex,
+                                   CoarseGrainedComplex):
+    pass
