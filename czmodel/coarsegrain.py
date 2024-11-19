@@ -8,7 +8,7 @@ Functions:
     coarse_grain_landscape(searcher_target_complex, intermediate_range)
 """
 
-from typing import Tuple
+from typing import Tuple, Union
 
 import numpy as np
 from scipy.linalg import inv
@@ -16,7 +16,8 @@ from scipy.linalg import inv
 from .kinetics import SearcherTargetComplex, SearcherSequenceComplex
 
 
-def coarse_grain_landscape(searcher_target_complex: SearcherTargetComplex,
+def coarse_grain_landscape(searcher_target_complex: Union[
+    SearcherTargetComplex, SearcherSequenceComplex],
                            intermediate_range: Tuple[int] = (7, 14)):
     """Calculates the coarse-grained rates over the two barrier regions
     that are expected to exist in a hybridization landscape.
@@ -42,15 +43,15 @@ def coarse_grain_landscape(searcher_target_complex: SearcherTargetComplex,
     """
 
     if isinstance(searcher_target_complex, SearcherSequenceComplex):
-        print("ok")
-        return CoarseGrainedComplex(
+        return CoarseGrainedSequenceComplex(
             searcher_target_complex.on_target_landscape,
             searcher_target_complex.mismatch_penalties,
             searcher_target_complex.internal_rates,
-            searcher_target_complex.target_mismatches
+            searcher_target_complex.protospacer,
+            searcher_target_complex.target_seq,
+            searcher_target_complex.weight
         ).get_coarse_grained_rates(intermediate_range)
     else:
-        print("ok2")
         return CoarseGrainedComplex(
             searcher_target_complex.on_target_landscape,
             searcher_target_complex.mismatch_penalties,
@@ -181,4 +182,6 @@ class CoarseGrainedComplex(SearcherTargetComplex):
 
 class CoarseGrainedSequenceComplex(SearcherSequenceComplex,
                                    CoarseGrainedComplex):
-    pass
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
