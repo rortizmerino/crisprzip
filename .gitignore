@@ -2,6 +2,7 @@
 .idea/
 build/
 crisprzip_model.egg-info/
+venv/
 
 # cache
 **/__pycache__/
