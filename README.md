@@ -1,3 +1,5 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+ 
 # CRISPRzip
 Welcome to the codebase of CRISPRzip from the [Depken Lab](https://depkenlab.tudelft.nl/) at TU
 Delft.
@@ -26,7 +28,7 @@ contribute to the development of safe gene editing technology.
 CRISPRzip is on [PyPi](https://pypi.org/) and can be installed 
 with [pip](https://pip.pypa.io/en/stable/).
 
-```bash
+```shell
 pip install crisprzip-model
 ```
 
