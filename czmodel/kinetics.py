@@ -1,7 +1,8 @@
 """
-The kinetics module is the core of the CRISPRzipper model.
-It defines the basic properties of a CRISPR(-like) searcher and uses
-these to simulate its R-loop hybridization dynamics.
+The kinetics module is the core of the CRISPRzip model.
+It defines the basic properties of a CRISPR(-like) endonuclease
+("searcher") and uses these to simulate its R-loop hybridization
+dynamics.
 
 Classes:
     Searcher
@@ -19,12 +20,12 @@ from .nucleic_acid import *
 
 class Searcher:
     """Characterizes the hybridization landscape of a nucleic acid guided
-    searcher. Assumes a reference concentration of 1 nM.
+    searcher.
 
     Attributes
     ----------
     guide_length: int
-        N, length of the nucleic acid guide (in bp)
+        Length of the nucleic acid guide N (in bp)
     on_target_landscape: array_like
         Contains the hybridization energies of the intermediate R-loop
         states on an on-target, relative to the PAM energy. In presence
@@ -54,7 +55,6 @@ class Searcher:
                  mismatch_penalties: ArrayLike,
                  internal_rates: dict,
                  pam_detection=True, *args, **kwargs):
-        """Constructor method"""
 
         # convert on_target_landscape and mismatch_penalties to numpy
         if (type(on_target_landscape) != np.ndarray or
@@ -273,7 +273,9 @@ class GuidedSearcher(BareSearcher):
 
     def set_on_target(self, protospacer: str) -> None:
         self.protospacer = protospacer
-        self.guide_rna = protospacer[-23:-3].replace("T", "U")
+        self.guide_rna = (GuideTargetHybrid
+                          .from_cas9_protospacer(protospacer)
+                          .guide)
 
     def probe_sequence(self, target_seq: str,
                        weight: Union[float, Tuple[float, float]] = None,
@@ -287,8 +289,7 @@ class GuidedSearcher(BareSearcher):
 class SearcherTargetComplex(Searcher):
     """
     Characterizes the hybridization landscape of a nucleic acid guided
-    searcher on a particular (off-)target sequence. Assumes a reference
-    concentration of 1 nM.
+    searcher on a particular (off-)target sequence.
 
     Attributes
     ----------
@@ -344,10 +345,6 @@ class SearcherTargetComplex(Searcher):
             off_target_landscape = (self.on_target_landscape +
                                     landscape_penalties)
         else:
-            # # without PAM detection, the penalty on the first state
-            # # is not added yet to have a consistent output
-            # off_target_landscape = (self.on_target_landscape +
-            #                         landscape_penalties[1:])
             raise ValueError('No support yet for off target landscape'
                              'without PAM detection')
 
@@ -389,9 +386,8 @@ class SearcherTargetComplex(Searcher):
     def get_rate_matrix(self, on_rate: float, dead=False) -> np.ndarray:
         """Sets up the rate matrix describing the master equation"""
 
-        # shallow copy to prevent overwriting due to concentration
         forward_rates = self.get_forward_rate_array(k_on=on_rate, dead=dead)
-        backward_rates = self.backward_rate_array.copy()
+        backward_rates = self.backward_rate_array
 
         diagonal1 = -(forward_rates + backward_rates)
         diagonal2 = backward_rates[1:]
@@ -407,7 +403,6 @@ class SearcherTargetComplex(Searcher):
                               on_rate: Union[float, np.ndarray],
                               dead=False, rebinding=True, mode='fast') ->\
             np.ndarray:
-
         """
         Calculates how the occupancy of the landscape states evolves by
         evaluating the master equation. Absorbing states (solution and
@@ -568,8 +563,7 @@ class SearcherTargetComplex(Searcher):
         Returns
         -------
         cleaved_fraction: np.ndarray
-            Fraction of targets that is expected to be cleaved by time
-            t.
+            Fraction of targets that is expected to be cleaved by time t.
         """
 
         unbound_state = np.concatenate(
@@ -633,6 +627,7 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
                  protospacer: str, target_seq: str,
                  weight: Union[float, Tuple[float, float]] = None):
 
+        # extra (sequence-related) attributes
         self.protospacer = protospacer
         self.target_seq = target_seq
         self.hybrid = GuideTargetHybrid.from_cas9_offtarget(
@@ -656,6 +651,7 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
         else:
             self.target_mismatches = target_mismatches
 
+        # recalculating off-target landscape according to sequence method
         self.off_target_landscape = self._get_off_target_landscape(
             weight=self.weight
         )
