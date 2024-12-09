@@ -182,6 +182,8 @@ class CoarseGrainedComplex(SearcherTargetComplex):
 
 class CoarseGrainedSequenceComplex(SearcherSequenceComplex,
                                    CoarseGrainedComplex):
-
+    """Similar to CoarseGrainedComplex but works for
+    SearcherSequenceComplexes, which have their off-target landscape
+    defined differently."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

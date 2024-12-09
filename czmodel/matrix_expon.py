@@ -1,3 +1,14 @@
+"""
+Methods to do (fast and parallel) matrix exponentiation.
+
+Functions:
+    exponentiate_fast(matrix, time)
+    update_rate_matrix(ref_rate_matrix, on_rate)
+    exponentiate_fast_var_onrate(ref_matrix, time, on_rates)
+    exponentiate_iterative(matrix, time)
+    exponentiate_iterative_var_onrate(ref_matrix, time, on_rates)
+"""
+
 import numpy as np
 from numba import njit
 from scipy import linalg
