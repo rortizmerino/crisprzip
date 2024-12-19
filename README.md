@@ -43,3 +43,12 @@ targeting fidelity.* Nature Communications.
 2. Jones Jr et al. (2021) *Massively parallel kinetic profiling of natural and 
 engineered CRISPR nucleases.* Nature Biotechnology.
 [10.1038/s41587-020-0646-5](https://doi.org/10.1038/s41587-020-0646-5)
+
+## WAIVER
+
+Technische Universiteit Delft hereby disclaims all copyright interest in the
+program “CRISPRzip” (a physics-based CRISPR activity predictor)
+written by the Author(s).
+Paulien Herder, Dean of Applied Sciences
+
+(c) 2024, Hidde Offerhaus, Delft, The Netherlands.

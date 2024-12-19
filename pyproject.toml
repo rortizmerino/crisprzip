@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+
+name = "crisprzip"
+version = "1.0.0"
+description = "A kinetic model of CRISPR-Cas target recognition."
+readme = "README"
+# Here, you can include a longer description which often mirrors your README file.
+# This description will appear on PyPI when your project is published.
+# This corresponds to the "Description" metadata field:
+# https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#readme
+# [TODO] Update Readme entry (when done)
+requires-python = ">=3.11,<3.13"
+license = {file = "LICENSE"}
+keywords = ["crispr-cas9", "crispr", "bioinformatics", "genome editing", "genetic engineering"]
+# Keywords that describe your project. These assist users in discovering your project on PyPI searches.
+# These should be a comma-separated list reflecting the nature or domain of the project.
+authors = [
+  {name = "HS Offerhaus", email = "hsofferhaus@gmail.com" }
+]
+# Information about the original authors of the project and their contact details.
+maintainers = [
+  {name = "HS Offerhaus", email = "hsofferhaus@gmail.com" }
+]
+# Information about the current maintainers of the project and their contact details.
+classifiers = [
+  # Indicate the development status of your project (maturity). Commonly, this is
+  #   3 - Alpha
+  #   4 - Beta
+  #   5 - Stable
+  #.  6 - Mature
+  "Development Status :: 4 - Beta",
+
+  # Target audience
+  "Intended Audience :: Developers",
+  "Topic :: Scientific/Engineering",
+
+  # License type
+  "License :: OSI Approved :: MIT License",
+
+  # Python versions your software supports. This is not checked by pip install, and is different from "requires-python".
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3 :: Only",
+]
+#
+# Classifiers help categorize the project on PyPI and aid in discoverability.
+# For a full list of valid classifiers, see https://pypi.org/classifiers/
+# [TODO] Update development status to 5 Stable (when ready)
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.7",  # [TODO] check minimum requirements
+  "joblib>=1.1",  # [TODO] check minimum requirements
+  "matplotlib>=3.7",  # [TODO] check minimum requirements
+  "numba>=0.57"
+]
+# Dependencies needed by your project. These packages will be installed by pip when
+# your project is installed. Ensure these are existing, valid packages.
+# For more on how this field compares to pip's requirements files, see:
+# https://packaging.python.org/discussions/install-requires-vs-requirements/
+
+[project.optional-dependencies]
+docs = [
+  "sphinx>=1.3",
+  "myst-parser"  # [TODO] check minimum requirements
+]
+jupyter = [
+  "jupyter>=1.0"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/hiddeoff/crisprzip-model"
+"Source" = "https://github.com/hiddeoff/crisprzip-model"
+# List of relevant URLs for your project. These are displayed on the left sidebar of your PyPI page.
+# This can include links to the homepage, source code, changelog, funding, etc.
+
+# After everything is populated, delete the commented-out lines.
