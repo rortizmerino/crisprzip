@@ -13,7 +13,7 @@ readme = "README"
 # This corresponds to the "Description" metadata field:
 # https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#readme
 # [TODO] Update Readme entry (when done)
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 license = {file = "LICENSE"}
 keywords = ["crispr-cas9", "crispr", "bioinformatics", "genome editing", "genetic engineering"]
 # Keywords that describe your project. These assist users in discovering your project on PyPI searches.
@@ -45,7 +45,6 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3 :: Only",
 ]
 #
@@ -54,15 +53,24 @@ classifiers = [
 # [TODO] Update development status to 5 Stable (when ready)
 dependencies = [
   "numpy>=1.24",
-  "scipy=>1.7",  # [TODO] check minimum requirements
-  "joblib=>1.1",  # [TODO] check minimum requirements
+  "scipy>=1.7",  # [TODO] check minimum requirements
+  "joblib>=1.1",  # [TODO] check minimum requirements
   "matplotlib>=3.7",  # [TODO] check minimum requirements
-  "numba=>0.57"
+  "numba>=0.57"
 ]
 # Dependencies needed by your project. These packages will be installed by pip when
 # your project is installed. Ensure these are existing, valid packages.
 # For more on how this field compares to pip's requirements files, see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
+
+[project.optional-dependencies]
+docs = [
+  "sphinx>=1.3",
+  "myst-parser"  # [TODO] check minimum requirements
+]
+jupyter = [
+  "jupyter>=1.0"
+]
 
 [project.urls]
 "Homepage" = "https://github.com/hiddeoff/crisprzip-model"
