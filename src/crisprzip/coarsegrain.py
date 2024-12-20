@@ -1,14 +1,6 @@
-"""
-Simplyfing full landscape to a coarse-grained, 3-state model.
+"""Simplify a full landscape to a coarse-grained, 3-state model."""
 
-Classes:
-    CoarseGrainedComplex()
-
-Functions:
-    coarse_grain_landscape(searcher_target_complex, intermediate_range)
-"""
-
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict
 
 import numpy as np
 from scipy.linalg import inv
@@ -16,30 +8,58 @@ from scipy.linalg import inv
 from .kinetics import SearcherTargetComplex, SearcherSequenceComplex
 
 
-def coarse_grain_landscape(searcher_target_complex: Union[
-    SearcherTargetComplex, SearcherSequenceComplex],
-                           intermediate_range: Tuple[int] = (7, 14)):
-    """Calculates the coarse-grained rates over the two barrier regions
-    that are expected to exist in a hybridization landscape.
+def coarse_grain_landscape(
+    searcher_target_complex: Union[SearcherTargetComplex,
+                                   SearcherSequenceComplex],
+    intermediate_range: Tuple[int, int] = (7, 14)
+) -> Tuple[Dict[str, float], int]:
+    """Calculate the coarse-grained rates over two barrier regions.
+
+    A typical off-target landscape for CRISPR-Cas9 has 2 barriers,
+    corresponding to the formation of the seed and the PAM-distal
+    R-loop. By coarse-graining the full landscape, one can obtain
+    the effective kinetics between the semi-stable states (PAM,
+    intermediate, full R-loop) that can be experimentally discriminated.
 
     Parameters
     ----------
-    searcher_target_complex: SearcherTargetComplex
+    searcher_target_complex : `crisprzip.kinetics.SearcherTargetComplex` or
+    `crisprzip.kinetics.SearcherSequenceComplex`
         The off-target hybridization landscape from this instance is
-        used to calculate the coarse-grained rates from
-    intermediate_range: tuple
+        used to calculate the coarse-grained rates
+    intermediate_range : `tuple` [`int`], optional
         The states a and b between which intermediate state is looked
         for. The lowest-energy state in the range [a, b) is the
         intermediate state. Default is [7, 14).
 
     Returns
     -------
-    coarse_grained_rates: dict
-        Dictionary containing the rates k_OI, k_IC, k_IO, k_CI
-        (Open, Intermediate, Closed). Confusingly, these have later
-        been renamed (O -> P for PAM and C -> O).
-    intermediate_id: int
+    coarse_grained_rates : `dict` [`str`, `float`]
+        Dictionary containing the rates k_OI, k_IC, k_IO, k_CI between
+        the states Open (=PAM), Intermediate, Closed (=full R-loop).
+    intermediate_id: `int`
         Location of the intermediate state.
+
+    Notes
+    -----
+    Coarse-grained landscapes are obtained by first obtaining the
+    intermediate state (see ``intermediate_range``). Then, for the state
+    pairs open-intermediate and intermediate-closed, a partial rate
+    matrix is obtained. By solving the Master Equation, we obtain
+    the average arrival time between the state pairs. The inverse of
+    the average arrival time gives the rate. The coarse-graining
+    approach is explained in detail in [12345]_.
+
+    Note that state labelling is different in some sources, where open and
+    closed refer to the state of the R-loop, not the protein structure.
+    Also, the open state "O" can be labelled as PAM state "P".
+
+    References
+    ----------
+    .. [12345] Eslami-Mossallam B et al. (2022) "A kinetic model predicts SpCas9
+       activity, improves off-target classification, and reveals the
+       physical basis of targeting fidelity." Nature Communications.
+       [10.1038/s41467-022-28994-2](https://doi.org/10.1038/s41467-022-28994-2)
     """
 
     if isinstance(searcher_target_complex, SearcherSequenceComplex):
@@ -61,40 +81,41 @@ def coarse_grain_landscape(searcher_target_complex: Union[
 
 
 class CoarseGrainedComplex(SearcherTargetComplex):
-    """Object to calculate the coarse grained rates over the barrier
-    regions in a SearcherTargetComplex hybridization landscape. This
-    object is the backend to the calculation, the recommended usage
-    is the function coarse_grain_landscape defined above."""
+    """Extends the SearchTargetComplex class with coarse-graining
+    functionality."""
 
-    def get_coarse_grained_rates(self, intermediate_range=(7, 14)):
-        """
-        Calculates the coarse-grained rates between the open (=PAM),
-        intermediate, and closed (=bound) state. Assumes PAM sensing.
+    def get_coarse_grained_rates(
+        self,
+        intermediate_range: Tuple[int, int] = (7, 14)
+    ) -> Tuple[Dict[str, float], int]:
+        """Calculate the coarse-grained rates over two barrier regions.
 
         Parameters
         ----------
-        intermediate_range: tuple
+        intermediate_range : `tuple` [`int`], optional
             The states a and b between which intermediate state is looked
             for. The lowest-energy state in the range [a, b) is the
             intermediate state. Default is [7, 14).
 
         Returns
         -------
-        cg_rates: dict
-            Dictionary containging the rates k_OI, k_IC, k_IO, k_CI
-            (Open, Intermediate, Closed). Confusingly, these have later
-            been renamed (O -> P for PAM and C -> O).
-        intermediate_id: int
+        coarse_grained_rates : `dict` [`str`, `float`]
+            Dictionary containing the rates k_OI, k_IC, k_IO, k_CI between
+            the states Open (=PAM), Intermediate, Closed (=full R-loop).
+        intermediate_id: `int`
             Location of the intermediate state.
-
         """
+
         # Because the target landscape is defined to have length N,
         # instead of N+1, we add one to the intermediate id
         intermediate_id = 1 + (
                 np.argmin(self.off_target_landscape[intermediate_range[0]:
-                                                    intermediate_range[1]]) +
+                                                    intermediate_range[1]],
+                          axis=0) +
                 intermediate_range[0]
         )
+        # making sure that intermediate_id is int
+        intermediate_id = np.atleast_1d(intermediate_id)[0]
 
         # These follow the old definitions, so have N+1 nonzero energy states
         # and 2 zero energy states (solution / cleaved)
@@ -129,9 +150,24 @@ class CoarseGrainedComplex(SearcherTargetComplex):
     @classmethod
     def __calculate_effective_rate(cls, forward_rate_array,
                                    backward_rate_array, start=0, stop=None):
-        """Calculates the effective rate from state start to state stop.
-        This calculation is from the old supplementary materials of
-        Eslami et al."""
+        """Calculate the effective rate from state ``start`` to state ``stop``.
+
+        Parameters
+        ----------
+        forward_rate_array : `numpy.ndarray`, (N+3,)
+            Forward rates of a Searcher object
+        backward_rate_array: `numpy.ndarray`, (N+3,)
+            Backward rates of a Searcher object
+        start : `int`, optional
+            Starting position, default is 0 (=solution state).
+        stop : `int`, optional
+            Starting position, default is None (=cleaved state).
+
+        Returns
+        -------
+        eff_rate: `float`
+            Effective rate from ``start`` to state ``stop``.
+        """
 
         partial_k = cls.__setup_partial_rate_matrix(forward_rate_array,
                                                     backward_rate_array,
@@ -152,11 +188,27 @@ class CoarseGrainedComplex(SearcherTargetComplex):
                                     backward_rate_array: np.ndarray,
                                     start: int = 0, stop: int = None,
                                     final_state_absorbs=False) -> np.ndarray:
-        """Returns a rate matrix of the states between start and stop
-        (including state 'stop'). Rate matrix set up is just like that in
-        the SearcherTargetComplex class. Stop=None gives everything up to
-        the final state. Final_state_absorbs=True makes the final state
-        absorbing."""
+        """Make a rate matrix of the states between ``start`` and ``stop``.
+
+        Parameters
+        ----------
+        forward_rate_array : `numpy.ndarray`, (N+3,)
+            Forward rates of a Searcher object
+        backward_rate_array: `numpy.ndarray`, (N+3,)
+            Backward rates of a Searcher object
+        start : `int`, optional
+            Starting position, default is 0 (=solution state).
+        stop : `int`, optional
+            Starting position, default is None (=cleaved state).
+        final_state_absorbs: `bool`, optional
+            If `True`, final state is absorbing. Default is `False`.
+
+        Returns
+        -------
+        rate_matrix : `numpy.ndarray`, (M, M)
+            If ``start`` and/or ``stop`` are provided, M is number
+            of transitions between the two states. Otherwise, M = N + 3.
+        """
 
         if stop is None:
             partial_kf = forward_rate_array.copy()[start:]
@@ -182,8 +234,7 @@ class CoarseGrainedComplex(SearcherTargetComplex):
 
 class CoarseGrainedSequenceComplex(SearcherSequenceComplex,
                                    CoarseGrainedComplex):
-    """Similar to CoarseGrainedComplex but works for
-    SearcherSequenceComplexes, which have their off-target landscape
-    defined differently."""
+    """Like CoarseGrainedComplex but works for SearcherSequenceComplexes."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

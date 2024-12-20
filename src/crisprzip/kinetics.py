@@ -401,7 +401,7 @@ class SearcherTargetComplex(Searcher):
     def solve_master_equation(self, initial_condition: np.ndarray,
                               time: Union[float, np.ndarray],
                               on_rate: Union[float, np.ndarray],
-                              dead=False, rebinding=True, mode='fast') ->\
+                              dead=False, rebinding=True, mode='fast') -> \
             np.ndarray:
         """
         Calculates how the occupancy of the landscape states evolves by
