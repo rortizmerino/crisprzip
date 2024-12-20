@@ -16,13 +16,19 @@ recognition dynamics of CRISPR-associated nucleases like Cas9
 [\[1\]](#references). Their interactions with target DNA is represented 
 as an energy landscape, with which you can simulate binding and cleavage
 kinetics. The parameters have been obtained by machine learning on 
-high-throughput data (see [\[1-2\]](#references)).  CRISPRzip makes 
+high-throughput data (see [\[1\]](#references)).  CRISPRzip makes 
 quantitative predictions of on-target efficiency and off-target risks of 
 different guide RNAs.
 
 With CRISPRzip, we hope to contribute to assessing
 the risks that come with particular choices in CRISPR application, and as such
 contribute to the development of safe gene editing technology.
+
+## References
+1. Eslami-Mossallam B et al. (2022) *A kinetic model predicts SpCas9 activity,
+improves off-target classification, and reveals the physical basis of
+targeting fidelity.* Nature Communications.
+[10.1038/s41467-022-28994-2](https://doi.org/10.1038/s41467-022-28994-2)
 
 ## Installation
 CRISPRzip is on [PyPi](https://pypi.org/) and can be installed 
@@ -35,11 +41,15 @@ pip install crisprzip-model
 ## Usage
 Text
 
-## References
-1. Eslami-Mossallam B et al. (2022) *A kinetic model predicts SpCas9 activity,
-improves off-target classification, and reveals the physical basis of
-targeting fidelity.* Nature Communications.
-[10.1038/s41467-022-28994-2](https://doi.org/10.1038/s41467-022-28994-2)
-2. Jones Jr et al. (2021) *Massively parallel kinetic profiling of natural and 
-engineered CRISPR nucleases.* Nature Biotechnology.
-[10.1038/s41587-020-0646-5](https://doi.org/10.1038/s41587-020-0646-5)
+## Contributing
+We encourage contributions in any form - reporting bugs, suggesting features,
+drafting code changes. Read our [Contributing guidelines](CONTRIBUTING) and 
+our [Code of Conduct](CODE_OF_CONDUCT).
+
+## Waiver
+Technische Universiteit Delft hereby disclaims all copyright interest in the
+program “CRISPRzip” (a physics-based CRISPR activity predictor)
+written by the Author(s).
+Paulien Herder, Dean of Applied Sciences
+
+(c) 2024, Hidde Offerhaus, Delft, The Netherlands.
