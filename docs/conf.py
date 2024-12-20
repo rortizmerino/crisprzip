@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'CRISPRzip-model'
+project = 'CRISPRzip'
 copyright = '2024, HS Offerhaus'
 author = 'HS Offerhaus'
 release = '1.0'

@@ -1,7 +1,7 @@
-czmodel
-=======
+crisprzip
+=========
 
 .. toctree::
    :maxdepth: 4
 
-   czmodel
+   crisprzip
