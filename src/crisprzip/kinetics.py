@@ -23,6 +23,7 @@ class Searcher:
     internal_rates : `dict` [`str`, `float`]
         Specifies the internal (=context-independent) rates in the
         model:
+
         ``"k_off"``
             PAM-unbinding rate in s⁻¹ (`float`).
         ``"k_f"``
