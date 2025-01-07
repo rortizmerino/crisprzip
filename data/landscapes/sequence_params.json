@@ -1,4 +1,7 @@
 {
+  "name": "SequenceLandscape1",
+  "description": "Landscapes representing the protein contribution to total hybridization cost, based on mismatch patterns. The R-loop cost should also be added as a nucleic acid contribution.",
+  "date": "25 September 2023",
   "on_target_landscape": [
     0.9928451934122187,
     0.5764652458621136,
@@ -47,5 +50,9 @@
     "k_off": 0.01973960433249118,
     "k_f": 70.67602072106178,
     "k_clv": 996500.3888514764
+  },
+  "binding_rates": {
+    "in_vitro": 6355.534137437657,
+    "in_vivo": "nan"
   }
 }
