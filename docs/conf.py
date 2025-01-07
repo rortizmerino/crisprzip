@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'CRISPRzip'
-copyright = '2024, HS Offerhaus'
+copyright = '2024, HS Offerhaus, MIT license'
 author = 'HS Offerhaus'
 release = '1.0'
 
