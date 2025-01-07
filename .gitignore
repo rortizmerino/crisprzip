@@ -8,6 +8,7 @@ venv311/
 venv312/
 venv313/
 docs/_build/
+docs/jupyter_execute/
 
 # cache
 **/__pycache__/

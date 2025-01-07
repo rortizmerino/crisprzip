@@ -622,8 +622,8 @@ class NearestNeighborModel:
     """
 
     # paths relative to crisprzipper source root
-    dna_dna_params_file = "data/nucleicacid_params/santaluciahicks2004.json"
-    rna_dna_params_file = "data/nucleicacid_params/alkan2018.json"
+    dna_dna_params_file = "data/nucleicacid/santaluciahicks2004.json"
+    rna_dna_params_file = "data/nucleicacid/alkan2018.json"
     dna_dna_params: dict = None
     rna_dna_params: dict = None
 

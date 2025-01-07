@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 
-from czmodel.kinetics import *
+from .kinetics import *
 
 
 class SearcherPlotter:

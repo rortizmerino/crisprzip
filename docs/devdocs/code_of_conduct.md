@@ -32,7 +32,7 @@ This Code of Conduct applies within project spaces and public spaces where an in
 
 ## Contact
 
-If you experience or witness unacceptable behavior, please report it by contacting [hsofferhaus@gmail.com](mailto:hsofferhaus@gmail.com). All reports will be reviewed and investigated confidentially.
+If you experience or witness unacceptable behavior, please report it by contacting [maintainer email]. All reports will be reviewed and investigated confidentially.
 
 ---
 
