@@ -13,23 +13,28 @@ CRISPRzip documentation
 
    userdocs/about.md
    userdocs/gettingstarted.md
-   ../examples/tutorial.ipynb
+   userdocs/tutorial.ipynb
    userdocs/code_structure.md
-
-.. toctree::
-   :maxdepth: 2
-   :caption: API reference
-   :hidden:
-
-   apidocs/crisprzip
 
 .. toctree::
    :maxdepth: 2
    :caption: Developing guidelines
    :hidden:
 
-   ../CODE_OF_CONDUCT
-   ../CONTRIBUTING
+   devdocs/contributing.md
+   devdocs/code_of_conduct.md
+   devdocs/changelog.md
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API reference
+   :hidden:
+
+   apidocs/crisprzip.coarsegrain
+   apidocs/crisprzip.kinetics
+   apidocs/crisprzip.matrix_expon
+   apidocs/crisprzip.nucleic_acid
+   apidocs/crisprzip.plotting
 
 Introduction
 ============
