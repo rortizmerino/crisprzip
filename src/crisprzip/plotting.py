@@ -210,7 +210,8 @@ class SearcherPlotter:
 
         return axs
 
-    def plot_off_target_landscape(self, mismatch_positions: MismatchPattern,
+    def plot_off_target_landscape(self,
+                                  mismatch_positions: MismatchPattern = None,
                                   y_lims: tuple = None,
                                   color='firebrick', axs: Axes = None,
                                   on_rates: list = None,
@@ -218,7 +219,11 @@ class SearcherPlotter:
         """Creates complete off-target landscape plot, based on the
         mismatch positions array"""
 
-        searcher = self.searcher.probe_target(mismatch_positions)
+        if isinstance(self.searcher, SearcherTargetComplex):
+            searcher = self.searcher
+        else:
+            searcher = self.searcher.probe_target(mismatch_positions)
+
         if y_lims is None and on_rates is not None:
             if on_rates is None:
                 solution_energies = []
@@ -239,7 +244,22 @@ class SearcherPlotter:
             self.prepare_landscape_line(axs, color='darkgray', **plot_kwargs),
             self.prepare_landscape_line(axs, color=color, **plot_kwargs)
         ]
-        self.update_on_target_landscape(lines[0])
+        if not isinstance(self.searcher, SearcherSequenceComplex):
+            self.update_on_target_landscape(lines[0])
+        else:
+            on_target_searcher = (self.searcher.probe_sequence(
+                self.searcher.protospacer
+            ))
+            lines[0].set_data(
+                np.arange(1 - on_target_searcher.pam_detection,
+                          on_target_searcher.guide_length + 2),
+                np.concatenate(
+                    (np.zeros(1),  # solution state
+                     on_target_searcher.off_target_landscape,
+                     np.ones(1) * lines[1].axes.get_ylim()[0])  # cleaved state
+                )
+            )
+
         lines[1].set_data(
             np.arange(1 - searcher.pam_detection, searcher.guide_length + 2),
             np.concatenate(
