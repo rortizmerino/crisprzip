@@ -621,7 +621,7 @@ class NearestNeighborModel:
         Structural Motifs. doi.org/10.1146/annurev.biophys.32.110601.141800
     """
 
-    # paths relative to crisprzipper source root
+    # paths relative to crisprzip source root
     dna_dna_params_file = "data/nucleicacid/santaluciahicks2004.json"
     rna_dna_params_file = "data/nucleicacid/alkan2018.json"
     dna_dna_params: dict = None
@@ -631,13 +631,13 @@ class NearestNeighborModel:
 
     @classmethod
     def load_data(cls, force=False):
-        folder = Path(__file__).parents[1]
+        pkg_root = Path(__file__).parents[2]
         if cls.dna_dna_params is None or force:
-            with open(folder.joinpath(cls.dna_dna_params_file), 'rb') as file:
+            with open(pkg_root.joinpath(cls.dna_dna_params_file), 'rb') as file:
                 cls.dna_dna_params = json.load(file)
 
         if cls.rna_dna_params is None or force:
-            with open(folder.joinpath(cls.rna_dna_params_file), 'rb') as file:
+            with open(pkg_root.joinpath(cls.rna_dna_params_file), 'rb') as file:
                 cls.rna_dna_params = json.load(file)
 
     @classmethod
