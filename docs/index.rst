@@ -8,12 +8,29 @@ CRISPRzip documentation
 
 .. toctree::
    :maxdepth: 2
-   :caption: User docs
+   :caption: User documentation
+   :hidden:
 
-   some-feature.md
-   source/crisprzip.rst
+   userdocs/about.md
+   userdocs/gettingstarted.md
+   ../examples/tutorial.ipynb
+   userdocs/code_structure.md
 
 .. toctree::
    :maxdepth: 2
    :caption: API reference
-   crisprzip
+   :hidden:
+
+   apidocs/crisprzip
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developing guidelines
+   :hidden:
+
+   ../CODE_OF_CONDUCT
+   ../CONTRIBUTING
+
+Introduction
+============
+Welcome!
