@@ -4,7 +4,7 @@
 Welcome to the codebase of CRISPRzip from the [Depken Lab](https://depkenlab.tudelft.nl/) at TU
 Delft.
 
-## Project
+## About the project
 <div align=center>
   <figure>
         <p><img src="img/activity_prediction.png" width="800"/>
@@ -39,7 +39,50 @@ pip install crisprzip-model
 ```
 
 ## Usage
-Text
+CRISPRzip makes predictions about cleavage and binding activity on on- and
+off-targets. First, you define the protospacer and target sequence, and then,
+you can predict the fraction cleaved or bound.
+```python
+# 1. load parameter set
+import json
+with open('data/landscapes/sequence_params.json', 'r') as file:
+    sequence_params = json.load(file)['param_values']
+
+# 2. define Cas9, gRNA and DNA target
+from crisprzip.kinetics import *
+searchertargetcomplex = SearcherSequenceComplex(
+    protospacer = "AGACGCATAAAGATGAGACGCTGG",
+    target_seq  = "AGACCCATTAAGATGAGACGCGGG",  # A13T G17C
+    **sequence_params
+)
+
+# 3. predict activity
+f_clv = searchertargetcomplex.get_cleaved_fraction(
+    time=600, # 10 minutes
+    on_rate=1E-1
+)
+f_bnd = searchertargetcomplex.get_bound_fraction(
+    time=600, # 10 minutes
+    on_rate=1E-1
+)
+
+# 4. format output
+print(f"After 10 minutes, the target (A13T G17C) is ...")
+print(f"- cleaved for {100*f_clv:.1f}% by Cas9")
+print(f"    or  ")
+print(f"- bound for {100*f_bnd:.1f}% by dCas9")
+```
+Output:
+```
+After 10 minutes, the target (A13T G17C) is ...
+- cleaved for 10.5% by Cas9
+    or  
+- bound for 94.2% by dCas9
+```
+
+See the [tutorial](examples/tutorial.ipynb) or the
+[docs](https://hiddeoff.github.io/crisprzip/) for more examples how to explore 
+sequence, time and concentration dependency.
 
 ## Contributing
 We encourage contributions in any form - reporting bugs, suggesting features,
