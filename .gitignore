@@ -9,6 +9,9 @@ venv312/
 venv313/
 docs/_build/
 docs/jupyter_execute/
+docs/userdocs/tutorial.ipynb
+docs/devdocs/contributing.md
+docs/devdocs/code_of_conduct.md
 
 # cache
 **/__pycache__/
