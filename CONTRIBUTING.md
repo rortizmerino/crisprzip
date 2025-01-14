@@ -52,7 +52,7 @@ Please be responsive to feedback and make necessary updates.
 Once approved, your contribution will be merged.
 
 ## Code of Conduct
-Please adhere to our [Code of Conduct](CODE_OF_CONDUCT) in all your 
+Please adhere to our [Code of Conduct](./CODE_OF_CONDUCT.md) in all your 
 interactions within the project.
 
 ## Questions?

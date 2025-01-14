@@ -86,8 +86,8 @@ sequence, time and concentration dependency.
 
 ## Contributing
 We encourage contributions in any form - reporting bugs, suggesting features,
-drafting code changes. Read our [Contributing guidelines](CONTRIBUTING) and 
-our [Code of Conduct](CODE_OF_CONDUCT).
+drafting code changes. Read our [Contributing guidelines](./CONTRIBUTING.md) and 
+our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Waiver
 Technische Universiteit Delft hereby disclaims all copyright interest in the
