@@ -614,7 +614,8 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
     def __init__(self, on_target_landscape: np.ndarray,
                  mismatch_penalties: np.ndarray, internal_rates: dict,
                  protospacer: str, target_seq: str,
-                 weight: Union[float, Tuple[float, float]] = None):
+                 weight: Union[float, Tuple[float, float]] = None,
+                 *args, **kwargs):
 
         # extra (sequence-related) attributes
         self.protospacer = protospacer
@@ -631,7 +632,8 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
             internal_rates=internal_rates,
             target_mismatches=target_mismatches,
             protospacer=protospacer,
-            weight=weight
+            weight=weight,
+            *args, **kwargs
         )
 
         # check dimensions of mismatch position array
