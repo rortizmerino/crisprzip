@@ -1,4 +1,4 @@
-# Contributing to CRISPRzip
+# Contributing
 
 Thanks for considering to contribute to CRISPRzip! We welcome contributions
 of all kinds—whether it's fixing a bug, suggesting an enhancement, or
