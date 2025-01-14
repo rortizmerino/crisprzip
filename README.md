@@ -35,7 +35,7 @@ CRISPRzip is on [PyPi](https://pypi.org/) and can be installed
 with [pip](https://pip.pypa.io/en/stable/).
 
 ```shell
-pip install crisprzip-model
+pip install crisprzip
 ```
 
 ## Usage
