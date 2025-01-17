@@ -52,11 +52,11 @@ classifiers = [
 # For a full list of valid classifiers, see https://pypi.org/classifiers/
 # [TODO] Update development status to 5 Stable (when ready)
 dependencies = [
-  "numpy>=1.24",
-  "scipy>=1.7",  # [TODO] check minimum requirements
-  "joblib>=1.1",  # [TODO] check minimum requirements
-  "matplotlib>=3.7",  # [TODO] check minimum requirements
-  "numba>=0.57"
+  "numpy",
+  "scipy",  # [TODO] check minimum requirements
+  "joblib",  # [TODO] check minimum requirements
+  "matplotlib",  # [TODO] check minimum requirements
+  "numba"
 ]
 # Dependencies needed by your project. These packages will be installed by pip when
 # your project is installed. Ensure these are existing, valid packages.
