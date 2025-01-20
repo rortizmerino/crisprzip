@@ -23,6 +23,10 @@ jobs:
           source venv312/bin/activate
           pip install sphinx sphinx_rtd_theme myst-nb numpy scipy matplotlib numba joblib
 
+      - name: Create necessary directories
+        run: |
+          mkdir -p docs/devdocs
+          
       - name: Prepare documentation files
         run: |
           cp examples/tutorial.ipynb docs/userdocs/tutorial.ipynb
