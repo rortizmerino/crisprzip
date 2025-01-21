@@ -17,14 +17,12 @@ Functions:
 """
 
 import json
-import os
 import random
 from pathlib import Path
-from shutil import rmtree
 from typing import Union, List, Tuple
 
 import numpy as np
-# from joblib import Memory
+from functools import lru_cache
 from numpy.random import Generator, default_rng
 from numpy.typing import ArrayLike
 
@@ -225,7 +223,9 @@ def get_hybridization_energy(protospacer: str,
         )
 
     # do calculations
-    dna_energy, rna_energy = get_na_energies_cached(protospacer, offtarget_seq)
+    out = get_na_energies_cached(protospacer, offtarget_seq)
+    dna_energy = np.array(out[0])
+    rna_energy = np.array(out[1])
     if weight is None:
         return dna_energy + rna_energy
     elif isinstance(weight, (float, int, np.floating, np.integer)):
@@ -235,9 +235,9 @@ def get_hybridization_energy(protospacer: str,
                 weight[1] * rna_energy)
 
 
-# @memory.cache
+@lru_cache
 def get_na_energies_cached(protospacer: str, offtarget_seq: str = None) -> \
-        Tuple[np.ndarray, np.ndarray]:
+        Tuple[Tuple[float, ], Tuple[float, ]]:
 
     # Prepare target DNA and guide RNA
     hybrid = GuideTargetHybrid.from_cas9_offtarget(offtarget_seq,
@@ -252,7 +252,8 @@ def get_na_energies_cached(protospacer: str, offtarget_seq: str = None) -> \
     dna_opening_energy = nnmodel.dna_opening_energy(hybrid)
     rna_duplex_energy = nnmodel.rna_duplex_energy(hybrid)
 
-    return dna_opening_energy, rna_duplex_energy
+    # hashable output
+    return tuple(dna_opening_energy), tuple(rna_duplex_energy)
 
 
 def find_average_mm_penalties(protospacer: str,
