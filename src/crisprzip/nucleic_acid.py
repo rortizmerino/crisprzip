@@ -24,7 +24,7 @@ from shutil import rmtree
 from typing import Union, List, Tuple
 
 import numpy as np
-from joblib import Memory
+# from joblib import Memory
 from numpy.random import Generator, default_rng
 from numpy.typing import ArrayLike
 
@@ -137,24 +137,24 @@ class MismatchPattern:
         return [i for i, mm in enumerate(self.pattern) if mm]
 
 
-def get_tempdir():
-    """make temporary directory to store get_hybridization_energy cache"""
-    environ = os.environ
-    if "TMP" in environ:
-        return Path(os.environ["TMP"]).joinpath("crisprzipper")
-    elif "TMPDIR" in environ:
-        return Path(os.environ["TMPDIR"]).joinpath("crisprzipper")
-    else:
-        return Path("/tmp/crisprzipper")
+# def get_tempdir():
+#     """make temporary directory to store get_hybridization_energy cache"""
+#     environ = os.environ
+#     if "TMP" in environ:
+#         return Path(os.environ["TMP"]).joinpath("crisprzipper")
+#     elif "TMPDIR" in environ:
+#         return Path(os.environ["TMPDIR"]).joinpath("crisprzipper")
+#     else:
+#         return Path("/tmp/crisprzipper")
 
 
-def clear_cache():
-    global tempdir
-    rmtree(tempdir)
+# def clear_cache():
+#     global tempdir
+#     rmtree(tempdir)
 
 
-tempdir = get_tempdir()
-memory = Memory(tempdir, verbose=0)
+# tempdir = get_tempdir()
+# memory = Memory(tempdir, verbose=0)
 
 
 def make_hybr_energy_func(protospacer: str,
@@ -235,7 +235,7 @@ def get_hybridization_energy(protospacer: str,
                 weight[1] * rna_energy)
 
 
-@memory.cache
+# @memory.cache
 def get_na_energies_cached(protospacer: str, offtarget_seq: str = None) -> \
         Tuple[np.ndarray, np.ndarray]:
 
