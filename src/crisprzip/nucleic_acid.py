@@ -559,14 +559,20 @@ class GuideTargetHybrid:
     def find_mismatches(self):
         """Identifies the positions of mismatching guide-target
         basepairs."""
-        mismatches = []
-        for i, n in enumerate(reversed(self.target.seq1)):
-            mismatches += [0 if self.bp_map[n] == self.guide[-1-i]
-                           else 1]
-        return mismatches
+        return list(find_mismatches_cached(self.target.seq1, self.guide))
 
     def get_mismatch_pattern(self) -> MismatchPattern:
         return MismatchPattern(self.find_mismatches())
+
+
+@lru_cache
+def find_mismatches_cached(seq1, guide):
+    bp_map = GuideTargetHybrid.bp_map
+    mismatches = []
+    for i, n in enumerate(reversed(seq1)):
+        mismatches += [0 if bp_map[n] == guide[-1 - i]
+                       else 1]
+    return tuple(mismatches)
 
 
 class NearestNeighborModel:
