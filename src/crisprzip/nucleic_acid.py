@@ -135,26 +135,6 @@ class MismatchPattern:
         return [i for i, mm in enumerate(self.pattern) if mm]
 
 
-# def get_tempdir():
-#     """make temporary directory to store get_hybridization_energy cache"""
-#     environ = os.environ
-#     if "TMP" in environ:
-#         return Path(os.environ["TMP"]).joinpath("crisprzipper")
-#     elif "TMPDIR" in environ:
-#         return Path(os.environ["TMPDIR"]).joinpath("crisprzipper")
-#     else:
-#         return Path("/tmp/crisprzipper")
-
-
-# def clear_cache():
-#     global tempdir
-#     rmtree(tempdir)
-
-
-# tempdir = get_tempdir()
-# memory = Memory(tempdir, verbose=0)
-
-
 def make_hybr_energy_func(protospacer: str,
                           weight: Union[float, Tuple[float, float]] = None):
     """Wrapper of get_hybridization_energy that makes a hybridization
