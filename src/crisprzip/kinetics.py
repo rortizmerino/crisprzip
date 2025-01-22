@@ -625,6 +625,7 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
             offtarget_seq=self.target_seq
         )
         target_mismatches = self.hybrid.get_mismatch_pattern()
+        self.weight = weight
 
         super().__init__(
             on_target_landscape=on_target_landscape,
@@ -636,24 +637,12 @@ class SearcherSequenceComplex(GuidedSearcher, SearcherTargetComplex):
             *args, **kwargs
         )
 
-        # check dimensions of mismatch position array
-        if target_mismatches.length != self.guide_length:
-            raise ValueError('Target array should be of same length as guide')
-        else:
-            self.target_mismatches = target_mismatches
-
-        # recalculating off-target landscape according to sequence method
-        self.off_target_landscape = self._get_off_target_landscape(
-            weight=self.weight
-        )
-        self.backward_rate_array = self._get_backward_rate_array()
-
-    def _get_off_target_landscape(self, weight=None):
+    def _get_off_target_landscape(self):
         """Add R-loop cost to the protein landscape."""
         internal_na_energy = get_hybridization_energy(
             protospacer=self.protospacer,
             offtarget_seq=self.target_seq,
-            weight=weight
+            weight=self.weight
         )[1:]
         protein_na_energy = (
             SearcherTargetComplex._get_off_target_landscape(self)
