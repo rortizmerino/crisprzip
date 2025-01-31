@@ -46,6 +46,10 @@ docs = [
 jupyter = [
   "jupyter>=1.0"
 ]
+tests = [
+  "pytest>=6.0",
+  "pandas>=2.0"
+]
 
 [project.urls]
 "Homepage" = "https://github.com/hiddeoff/crisprzip"
