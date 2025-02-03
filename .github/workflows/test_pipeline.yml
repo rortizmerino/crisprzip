@@ -25,8 +25,9 @@ jobs:
         python -m venv venv312
         source venv312/bin/activate
         pip install -e '.[tests]'
+        pip install pytest
 
     - name: Run tests
       working-directory: .  # project root as working directory
       run: |
-        pytest tests/cleavage_binding_prediction/test_cleavage_binding_prediction.py -v
+        python -m pytest tests/cleavage_binding_prediction/test_cleavage_binding_prediction.py -v
