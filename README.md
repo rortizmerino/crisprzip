@@ -6,11 +6,7 @@ Welcome to the codebase of CRISPRzip from the [Depken Lab](https://depkenlab.tud
 Delft.
 
 ## About the project
-<div align=center>
-  <figure>
-        <p><img src="img/activity_prediction.png" width="800"/>
-  </figure>
-</div>
+![Activity prediction with CRISPRzip](https://raw.githubusercontent.com/hiddeoff/crisprzip/main/img/activity_prediction.png)
 
 CRISPRzip is a physics-based model to study the target 
 recognition dynamics of CRISPR-associated nucleases like Cas9
