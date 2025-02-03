@@ -50,6 +50,10 @@ tests = [
   "pytest>=6.0",
   "pandas>=2.0"
 ]
+distr = [
+  "build",
+  "twine"
+]
 
 [project.urls]
 "Homepage" = "https://github.com/hiddeoff/crisprzip"
