@@ -1,6 +1,7 @@
 # CRISPRzip
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
- 
+![Test Status](https://github.com/hiddeoff/crisprzip/actions/workflows/test_pipeline.yml/badge.svg)
+
 Welcome to the codebase of CRISPRzip from the [Depken Lab](https://depkenlab.tudelft.nl/) at TU
 Delft.
 
