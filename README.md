@@ -10,19 +10,18 @@ Delft.
 
 CRISPRzip is a physics-based model to study the target 
 recognition dynamics of CRISPR-associated nucleases like Cas9
-[\[1\]](#references). Their interactions with target DNA is represented 
+([Eslami-Mossalam, 2022](#references)). Their interactions with target DNA is represented 
 as an energy landscape, with which you can simulate binding and cleavage
 kinetics. The parameters have been obtained by machine learning on 
-high-throughput data (see [\[1\]](#references)).  CRISPRzip makes 
-quantitative predictions of on-target efficiency and off-target risks of 
-different guide RNAs.
+high-throughput data. CRISPRzip makes quantitative predictions of on-target 
+efficiency and off-target risks of different guide RNAs.
 
 With CRISPRzip, we hope to contribute to assessing
 the risks that come with particular choices in CRISPR application, and as such
 contribute to the development of safe gene editing technology.
 
-## References
-1. Eslami-Mossallam B et al. (2022) *A kinetic model predicts SpCas9 activity,
+### References
+Eslami-Mossallam B et al. (2022) *A kinetic model predicts SpCas9 activity,
 improves off-target classification, and reveals the physical basis of
 targeting fidelity.* Nature Communications.
 [10.1038/s41467-022-28994-2](https://doi.org/10.1038/s41467-022-28994-2)
@@ -85,6 +84,12 @@ sequence, time and concentration dependency.
 We encourage contributions in any form - reporting bugs, suggesting features,
 drafting code changes. Read our [Contributing guidelines](./CONTRIBUTING.md) and 
 our [Code of Conduct](./CODE_OF_CONDUCT.md).
+
+## Acknowledgements
+Many thanks to [Elviss Dvinskis](https://github.com/edvinskis),
+[Raúl Ortiz](https://github.com/rortizmerino) and [Aysun Urhan](https://github.com/aysunrhn)
+from the [DCC team at TU Delft](https://www.tudelft.nl/en/library/support/library-for-researchers/setting-up-research/dcc)
+for their support to get this package released!
 
 ## Waiver
 Technische Universiteit Delft hereby disclaims all copyright interest in the
