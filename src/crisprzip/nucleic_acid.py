@@ -1,20 +1,4 @@
-"""
-Contains classes representing nucleic acid in different ways. Primarily
-supports the hybridization_kinetics module.
-
-Classes:
-    MismatchPattern
-    TargetDna
-    GuideTargetHybrid
-    NearestNeighborModel
-
-Functions:
-    format_point_mutations()
-    get_tempdir(
-    clear_cache()
-    get_hybridization_energy()
-    make_hybr_energy_func()
-"""
+"""Represents nucleic acid hybrids, either by mismatch positions or sequences."""
 
 import json
 import random

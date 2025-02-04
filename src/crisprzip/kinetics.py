@@ -14,10 +14,10 @@ class Searcher:
     ----------
     guide_length : `int`
         Length of the nucleic acid guide N (in bp)
-    on_target_landscape : `numpy.ndarray` (N,)
+    on_target_landscape : `numpy.ndarray`, (N,)
         Contains the hybridization energies of the intermediate R-loop
         states on an on-target, relative to the PAM energy.
-    mismatch_penalties : `numpy.ndarray` (N,)
+    mismatch_penalties : `numpy.ndarray`, (N,)
         Contains the energetic penalties associated with a mismatch
         at a particular R-loop position.
     internal_rates : `dict` [`str`, `float`]
