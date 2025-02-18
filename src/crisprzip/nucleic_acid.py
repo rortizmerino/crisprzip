@@ -1,5 +1,6 @@
 """Represents nucleic acid hybrids, either by mismatch positions or sequences."""
 
+import importlib.resources
 import json
 import random
 from pathlib import Path
@@ -574,8 +575,8 @@ class NearestNeighborModel:
     """
 
     # paths relative to crisprzip source root
-    dna_dna_params_file = "data/nucleicacid/santaluciahicks2004.json"
-    rna_dna_params_file = "data/nucleicacid/alkan2018.json"
+    dna_dna_params_file = "santaluciahicks2004.json"
+    rna_dna_params_file = "alkan2018.json"
     dna_dna_params: dict = None
     rna_dna_params: dict = None
 
@@ -583,13 +584,14 @@ class NearestNeighborModel:
 
     @classmethod
     def load_data(cls, force=False):
-        pkg_root = Path(__file__).parents[2]
         if cls.dna_dna_params is None or force:
-            with open(pkg_root.joinpath(cls.dna_dna_params_file), 'rb') as file:
+            with (importlib.resources.files("crisprzip.nucleicacid_params")
+                  .joinpath(cls.dna_dna_params_file).open("r") as file):
                 cls.dna_dna_params = json.load(file)
 
         if cls.rna_dna_params is None or force:
-            with open(pkg_root.joinpath(cls.rna_dna_params_file), 'rb') as file:
+            with (importlib.resources.files("crisprzip.nucleicacid_params")
+                  .joinpath(cls.rna_dna_params_file).open("r") as file):
                 cls.rna_dna_params = json.load(file)
 
     @classmethod

@@ -1,4 +1,3 @@
-import json
 import pandas as pd
 from crisprzip.kinetics import *
 
@@ -31,18 +30,13 @@ k_bnd = [1E-2, 2E0, 5E2]
 
 def average_params():
 
-    with open("data/landscapes/average_params.json", 'r') as file:
-        average_params = json.load(file)['param_values']
+    avg_searcher = load_landscape("average_params")
 
     avg_df = pd.DataFrame(columns=['mm_pattern', 'exptype', 'k_on', 'time', 'fraction'])
 
     for tseq in targets:
         mmp = GuideTargetHybrid.from_cas9_offtarget(tseq, protospacer).get_mismatch_pattern()
-        # mmp = MismatchPattern.from_target_sequence(protospacer, tseq)
-        stc = SearcherTargetComplex(
-            target_mismatches=mmp,
-            **average_params
-        )
+        stc = avg_searcher.probe_target(mmp)
         for kb in k_bnd:
             for t in time_pts:
                 f_clv = stc.get_cleaved_fraction(time=t, on_rate=kb).round(3)
@@ -57,17 +51,12 @@ def average_params():
 
 def sequence_params():
 
-    with open("data/landscapes/sequence_params.json", 'r') as file:
-        sequence_params = json.load(file)['param_values']
+    seq_searcher = load_landscape("sequence_params")
 
     seq_df = pd.DataFrame(columns=['protospacer', 'targetseq', 'exptype', 'k_on', 'time', 'fraction'])
 
     for tseq in targets:
-        stc = SearcherSequenceComplex(
-            protospacer=protospacer,
-            target_seq=tseq,
-            **sequence_params
-        )
+        stc = seq_searcher.probe_sequence(protospacer, tseq)
         for kb in k_bnd:
             for t in time_pts:
                 f_clv = stc.get_cleaved_fraction(time=t, on_rate=kb).round(3)
@@ -78,11 +67,7 @@ def sequence_params():
                 seq_df.loc[seq_df.shape[0]] = [protospacer, tseq, 'binding', kb, t, f_bnd]
 
     for tseq in targets2:
-        stc = SearcherSequenceComplex(
-            protospacer=protospacer2,
-            target_seq=tseq,
-            **sequence_params
-        )
+        stc = seq_searcher.probe_sequence(protospacer2, tseq)
         for kb in k_bnd:
             for t in time_pts:
                 f_clv = stc.get_cleaved_fraction(time=t, on_rate=kb).round(3)
@@ -93,11 +78,7 @@ def sequence_params():
                 seq_df.loc[seq_df.shape[0]] = [protospacer2, tseq, 'binding', kb, t, f_bnd]
 
     for tseq in targets3:
-        stc = SearcherSequenceComplex(
-            protospacer=protospacer3,
-            target_seq=tseq,
-            **sequence_params
-        )
+        stc = seq_searcher.probe_sequence(protospacer3, tseq)
         for kb in k_bnd:
             for t in time_pts:
                 f_clv = stc.get_cleaved_fraction(time=t, on_rate=kb).round(3)
