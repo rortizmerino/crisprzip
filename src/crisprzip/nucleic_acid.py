@@ -585,17 +585,13 @@ class NearestNeighborModel:
     @classmethod
     def load_data(cls, force=False):
         if cls.dna_dna_params is None or force:
-            with importlib.resources.open_text(
-                    "crisprzip.nucleicacid_params",
-                    cls.dna_dna_params_file
-            ) as file:
+            with (importlib.resources.files("crisprzip.nucleicacid_params")
+                  .joinpath(cls.dna_dna_params_file).open("r") as file):
                 cls.dna_dna_params = json.load(file)
 
-        if cls.dna_dna_params is None or force:
-            with importlib.resources.open_text(
-                    "crisprzip.nucleicacid_params",
-                    cls.rna_dna_params_file
-            ) as file:
+        if cls.rna_dna_params is None or force:
+            with (importlib.resources.files("crisprzip.nucleicacid_params")
+                  .joinpath(cls.rna_dna_params_file).open("r") as file):
                 cls.rna_dna_params = json.load(file)
 
     @classmethod

@@ -669,7 +669,7 @@ def load_landscape(parameter_set: str):
 
     Returns
     -------
-    searcher_obj : `Searcher`
+    searcher_obj : `Searcher` or `BareSearcher`
         An instance of the `Searcher` or one of its subclasses.
 
     Notes
@@ -691,8 +691,8 @@ def load_landscape(parameter_set: str):
     ]
 
     if parameter_set in available_paramsets:
-        with importlib.resources.open_text("crisprzip.landscape_params",
-                                           f"{parameter_set}.json") as file:
+        with (importlib.resources.files("crisprzip.landscape_params")
+              .joinpath(f"{parameter_set}.json").open("r") as file):
             landscape_params = json.load(file)
 
     elif Path(parameter_set).is_file() and Path(parameter_set).suffix == '.json':
