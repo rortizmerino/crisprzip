@@ -45,8 +45,8 @@ verify your local installation, please follow the Developer Installation
 instructions, then run the following test.
 
 ```shell
-pip install pytest
 source crisprzip-venv/bin/activate
+pip install -e '.[tests]'  # installs pytest and pandas
 pytest tests/cleavage_binding_prediction/test_cleavage_binding_prediction.py -v
 ```
 
